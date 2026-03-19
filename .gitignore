@@ -1,0 +1,4 @@
+someone/
+.messages.json
+__pycache__/
+.env
