@@ -1,0 +1,28 @@
+[
+  {
+    "date": "2026-03-19",
+    "time_of_day": "afternoon",
+    "facts_learned": [
+      "name: raj"
+    ],
+    "emotional_tone": "neutral",
+    "energy_level": "medium",
+    "events": [],
+    "open_stories": [],
+    "behaviour_signal": "tends to be frustrated with direct communication at medium energy",
+    "communication_style": "direct",
+    "trust_level_at_snapshot": 0.155
+  },
+  {
+    "date": "2026-03-23",
+    "time_of_day": "evening",
+    "facts_learned": [],
+    "emotional_tone": "neutral",
+    "energy_level": "medium",
+    "events": [],
+    "open_stories": [],
+    "behaviour_signal": "tends to be neutral with direct communication at medium energy",
+    "communication_style": "direct",
+    "trust_level_at_snapshot": 0.2
+  }
+]

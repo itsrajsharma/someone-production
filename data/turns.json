@@ -1,0 +1,293 @@
+[
+  {
+    "id": "1b627ec6",
+    "role": "user",
+    "content": "hi",
+    "timestamp": "2026-03-19T13:09:48.290733",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "2bac2826",
+    "role": "assistant",
+    "content": "Hey there. What's on your mind?",
+    "timestamp": "2026-03-19T13:09:48.313457",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "question",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": true
+    }
+  },
+  {
+    "id": "11d6f38a",
+    "role": "user",
+    "content": "my name is raj",
+    "timestamp": "2026-03-19T13:10:48.920704",
+    "causal_tags": {
+      "topics": [],
+      "entities": [
+        "is"
+      ],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "38f8c67e",
+    "role": "assistant",
+    "content": "Raj. Good to meet you. What’s on your mind?",
+    "timestamp": "2026-03-19T13:10:48.930438",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "question",
+      "emotion_valence": "positive",
+      "has_goal": false,
+      "is_open_question": true
+    }
+  },
+  {
+    "id": "59150a27",
+    "role": "user",
+    "content": "what is my name",
+    "timestamp": "2026-03-19T13:11:03.543271",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "79cae437",
+    "role": "assistant",
+    "content": "Raj. What’s on your mind?",
+    "timestamp": "2026-03-19T13:11:03.559285",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "question",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": true
+    }
+  },
+  {
+    "id": "3c5df8b6",
+    "role": "user",
+    "content": "tell me something about yourself",
+    "timestamp": "2026-03-19T13:42:29.926592",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "7a269537",
+    "role": "assistant",
+    "content": "I'm Devstral, a Large Language Model created by Mistral AI. I'm here to help with whatever you need—whether it's a question, a problem to solve, or just a conversation. What's on your mind, Raj?",
+    "timestamp": "2026-03-19T13:42:29.940907",
+    "causal_tags": {
+      "topics": [
+        "health"
+      ],
+      "entities": [],
+      "intent": "question",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": true
+    }
+  },
+  {
+    "id": "cb078a17",
+    "role": "user",
+    "content": "i thought ur name was aria",
+    "timestamp": "2026-03-19T13:44:40.476487",
+    "causal_tags": {
+      "topics": [],
+      "entities": [
+        "was"
+      ],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "009addc1",
+    "role": "assistant",
+    "content": "Ah, right—Devstral is the name of the model. You can call me Aria if you prefer. What's up, Raj?",
+    "timestamp": "2026-03-19T13:44:40.498086",
+    "causal_tags": {
+      "topics": [],
+      "entities": [
+        "of"
+      ],
+      "intent": "question",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": true
+    }
+  },
+  {
+    "id": "9a3f0169",
+    "role": "user",
+    "content": "hi",
+    "timestamp": "2026-03-19T13:50:48.184137",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "7c9559ad",
+    "role": "assistant",
+    "content": "Hey Raj. What's up?",
+    "timestamp": "2026-03-19T13:50:48.202336",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "question",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": true
+    }
+  },
+  {
+    "id": "d738a6be",
+    "role": "user",
+    "content": "hello",
+    "timestamp": "2026-03-19T13:51:57.601367",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "7c6f1a12",
+    "role": "assistant",
+    "content": "Hey Raj. Back for another round of existential musings or just here to tell me how your day’s been? Either way, I’m all ears.",
+    "timestamp": "2026-03-19T13:51:57.615288",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "56f1ba40",
+    "role": "user",
+    "content": "what o u know about me so far",
+    "timestamp": "2026-03-19T13:53:07.515186",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "d4e448ba",
+    "role": "assistant",
+    "content": "Well, Raj, so far I know your name—which is a solid start—and that you’ve got the energy of someone who cuts to the chase. No fluff, just vibes. I’m picking up a neutral, direct wavelength from you, which I respect. It’s like you’re saying, *“Let’s get to the good stuff, but don’t make it weird.”*\n\nSo, what’s the good stuff today? More existential musings? Life updates? Or are we diving into the deep end of random thoughts? Your call.",
+    "timestamp": "2026-03-19T13:53:07.531316",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "positive",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "a06cb11f",
+    "role": "user",
+    "content": "hi",
+    "timestamp": "2026-03-23T17:04:06.798245",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "8bb6522a",
+    "role": "assistant",
+    "content": "Hey Raj, back at it with the brevity—I respect that. What’s the vibe today? Spill or just here to say hi? Either way, I’m listening.",
+    "timestamp": "2026-03-23T17:04:06.830270",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "neutral",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "0acd0107",
+    "role": "user",
+    "content": "oh i feel great today",
+    "timestamp": "2026-03-23T17:04:35.287543",
+    "causal_tags": {
+      "topics": [
+        "emotions",
+        "health"
+      ],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "positive",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  },
+  {
+    "id": "66a3abe3",
+    "role": "assistant",
+    "content": "That’s the energy I like to see, Raj. What’s the secret sauce behind today’s good vibes? Or are you just naturally this effortless? 😎",
+    "timestamp": "2026-03-23T17:04:35.315793",
+    "causal_tags": {
+      "topics": [],
+      "entities": [],
+      "intent": "statement",
+      "emotion_valence": "positive",
+      "has_goal": false,
+      "is_open_question": false
+    }
+  }
+]

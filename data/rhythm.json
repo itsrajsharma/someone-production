@@ -1,0 +1,22 @@
+{
+  "most_open_time": "evening",
+  "most_stressed_day": "unknown",
+  "storytelling_frequency": "low",
+  "trust_growth_rate": "slow",
+  "last_updated": "2026-03-23T17:04:35.372213",
+  "session_times": [
+    {
+      "time_of_day": "afternoon",
+      "trust": 0.155,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.2,
+      "tone": "neutral",
+      "num_stories": 0
+    }
+  ],
+  "snapshot_count": 2
+}
