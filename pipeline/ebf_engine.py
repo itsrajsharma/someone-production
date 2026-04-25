@@ -1,16 +1,13 @@
 """
 Layer 3 — Emotional Behavioural Fingerprint (EBF)
 Builds a profile of the user's emotional and communication patterns turn-by-turn.
-No LLM involved — pure signal detection from message characteristics.
-The EBF shapes the RESPOND tone instruction in the scaffold.
+No file I/O — one row per user+persona in Supabase, upserted on every update.
 """
 
-import json
 import os
-import re
 from datetime import datetime
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "ebf.json")
+from db.client import get_db
 
 # Default EBF state
 _DEFAULT_EBF = {
@@ -23,111 +20,96 @@ _DEFAULT_EBF = {
     "session_message_count": 0,
     "total_message_count": 0,
     "energy_level": "medium",
-    "last_updated": "",
 }
+
 
 # ── Persistence ───────────────────────────────────────────────────────────────
 
-def _load() -> dict:
-    if not os.path.exists(DATA_PATH):
-        return dict(_DEFAULT_EBF)
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
-        try:
-            data = json.load(f)
-            # Merge with defaults in case new keys were added
-            return {**_DEFAULT_EBF, **data}
-        except json.JSONDecodeError:
-            return dict(_DEFAULT_EBF)
+def _load(user_id: str, persona: str = "aria") -> dict:
+    db = get_db()
+    result = (
+        db.table("ebf")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("persona", persona)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        row = result.data[0]
+        # Merge with defaults in case new keys were added
+        return {**_DEFAULT_EBF, **{k: v for k, v in row.items() if k in _DEFAULT_EBF or k == "last_updated"}}
+    return dict(_DEFAULT_EBF)
 
 
-def _save(ebf: dict):
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-    ebf["last_updated"] = datetime.utcnow().isoformat()
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(ebf, f, indent=2, ensure_ascii=False)
+def _save(ebf: dict, user_id: str, persona: str = "aria"):
+    db = get_db()
+    row = {
+        "user_id": user_id,
+        "persona": persona,
+        "dominant_emotion_pattern": ebf.get("dominant_emotion_pattern", "unknown"),
+        "communication_style": ebf.get("communication_style", "neutral"),
+        "trust_level": ebf.get("trust_level", 0.10),
+        "current_state": ebf.get("current_state", "neutral"),
+        "unmet_need": ebf.get("unmet_need", ""),
+        "response_preference": ebf.get("response_preference", "balanced"),
+        "session_message_count": ebf.get("session_message_count", 0),
+        "total_message_count": ebf.get("total_message_count", 0),
+        "energy_level": ebf.get("energy_level", "medium"),
+        "last_updated": datetime.utcnow().isoformat(),
+    }
+    db.table("ebf").upsert(row, on_conflict="user_id,persona").execute()
 
 
 # ── Signal Detection ──────────────────────────────────────────────────────────
 
-def _detect_arousal(text: str) -> str:
-    """Detect energy/arousal level from punctuation and caps."""
-    exclamations = text.count("!")
-    caps_ratio = sum(1 for c in text if c.isupper()) / max(len(text), 1)
-    ellipsis = text.count("...")
-    question_marks = text.count("?")
+def _analyze_ebf_llm(user_message: str, current_ebf: dict) -> dict:
+    from openai import OpenAI
+    import json
 
-    if exclamations >= 2 or caps_ratio > 0.3:
-        return "high"
-    if ellipsis >= 2 or (question_marks >= 2):
-        return "anxious"
-    if exclamations == 0 and len(text) < 20:
-        return "low"
-    return "medium"
+    prompt = f"""Analyze the following user message to determine their current emotional and communicative state.
+Output strictly raw JSON without ANY markdown formatting.
+Schema:
+{{
+  "arousal": "low, medium, high, or anxious",
+  "style": "formal, informal, or direct",
+  "state": "excited, frustrated, anxious, sad, reflective, or content",
+  "unmet_need": "short phrase describing what they want out of this interaction",
+  "response_preference": "instruction for the AI on how to reply"
+}}
 
-
-def _detect_style(text: str) -> str:
-    """Detect communication style: formal, informal, direct."""
-    lower = text.lower()
-    informal_markers = ["u ", "ur ", "lol", "omg", "gonna", "wanna", "kinda",
-                        "sorta", "idk", "tbh", "ngl", "im ", "cant ", "dont ", "its "]
-    formal_markers = ["therefore", "however", "consequently", "furthermore",
-                      "regarding", "with respect to", "in terms of"]
-
-    informal_score = sum(1 for m in informal_markers if m in lower)
-    formal_score = sum(1 for m in formal_markers if m in lower)
-
-    if informal_score >= 2:
-        return "informal"
-    if formal_score >= 1:
-        return "formal"
-    return "direct"
-
-
-def _detect_emotion_state(text: str) -> str:
-    """Rough current emotional state from keywords."""
-    lower = text.lower()
-    states = {
-        "excited": ["excited", "amazing", "can't wait", "love it", "awesome", "hyped"],
-        "frustrated": ["frustrated", "annoying", "hate", "ugh", "fed up", "so tired of"],
-        "anxious": ["worried", "scared", "anxious", "nervous", "not sure", "what if"],
-        "sad": ["sad", "lonely", "miss", "hurt", "upset", "down", "low"],
-        "reflective": ["thinking", "wondering", "realised", "realized", "felt like", "looking back"],
-        "content": ["good", "fine", "okay", "alright", "happy", "stable"],
-    }
-    for state, keywords in states.items():
-        if any(kw in lower for kw in keywords):
-            return state
-    return "neutral"
-
-
-def _detect_unmet_need(text: str, current_state: str) -> str:
-    """Guess unmet need from context."""
-    lower = text.lower()
-    if "nobody" in lower or "no one" in lower or "alone" in lower:
-        return "wants to feel heard"
-    if "don't know what to do" in lower or "help" in lower:
-        return "needs guidance"
-    if "i'm right" in lower or "agree with me" in lower or "what do you think" in lower:
-        return "wants validation"
-    if current_state == "excited":
-        return "wants to share and be celebrated"
-    if current_state == "frustrated":
-        return "wants acknowledgment of frustration"
-    return ""
-
-
-def _infer_response_preference(style: str, arousal: str, msg_len: int) -> str:
-    """Infer preferred response style for the scaffold RESPOND directive."""
-    if style == "informal" and arousal == "high":
-        return "punchy, match their high energy, stay grounded"
-    if arousal == "anxious":
-        return "calm, deeply grounding, clear and rational"
-    if arousal == "low" or msg_len < 30:
-        return "brief, clever, warm but not overbearing"
-    if style == "formal":
-        return "thoughtful, respect intelligence, subtle humour"
-    # Default fallback that still preserves Aria's vibe
-    return "balanced, grounded, cleverly framed, concise"
+User Message: "{user_message}"
+"""
+    try:
+        client = OpenAI(
+            api_key=os.environ["GROQ_API_KEY"],
+            base_url="https://api.groq.com/openai/v1",
+        )
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```json"):
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif content.startswith("```"):
+            content = content.split("```")[1].split("```")[0].strip()
+        result = json.loads(content)
+        return {
+            "arousal": result.get("arousal", "medium"),
+            "style": result.get("style", "direct"),
+            "state": result.get("state", "neutral"),
+            "unmet_need": result.get("unmet_need", ""),
+            "response_preference": result.get("response_preference", "balanced, grounded"),
+        }
+    except Exception as e:
+        print(f"[EBF LLM Error] {e}")
+        return {
+            "arousal": "medium", "style": "direct",
+            "state": "neutral", "unmet_need": "",
+            "response_preference": "balanced, grounded, cleverly framed, concise",
+        }
 
 
 def _update_trust(ebf: dict, text: str) -> float:
@@ -139,66 +121,57 @@ def _update_trust(ebf: dict, text: str) -> float:
         "my family", "my friend", "my sister", "my brother", "i love",
     ]
     boost = sum(0.02 for s in personal_signals if s in lower)
-    new_trust = min(1.0, ebf["trust_level"] + boost + 0.005)  # slow baseline growth
+    new_trust = min(1.0, ebf["trust_level"] + boost + 0.005)
     return round(new_trust, 3)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def update_ebf(user_message: str) -> dict:
-    """
-    Update EBF based on the incoming user message.
-    Returns the updated EBF dict.
-    """
-    ebf = _load()
+def update_ebf(user_message: str, user_id: str, persona: str = "aria") -> dict:
+    """Update EBF based on the incoming user message. Returns the updated EBF dict."""
+    ebf = _load(user_id, persona)
 
-    arousal = _detect_arousal(user_message)
-    style = _detect_style(user_message)
-    state = _detect_emotion_state(user_message)
-    unmet_need = _detect_unmet_need(user_message, state)
-    response_pref = _infer_response_preference(style, arousal, len(user_message))
+    llm_ebf = _analyze_ebf_llm(user_message, ebf)
     trust = _update_trust(ebf, user_message)
 
-    ebf["energy_level"] = arousal
-    ebf["communication_style"] = style
-    ebf["current_state"] = state
+    ebf["energy_level"] = llm_ebf["arousal"]
+    ebf["communication_style"] = llm_ebf["style"]
+    ebf["current_state"] = llm_ebf["state"]
     ebf["trust_level"] = trust
-    ebf["response_preference"] = response_pref
+    ebf["response_preference"] = llm_ebf["response_preference"]
     ebf["session_message_count"] = ebf.get("session_message_count", 0) + 1
     ebf["total_message_count"] = ebf.get("total_message_count", 0) + 1
 
-    if unmet_need:
-        ebf["unmet_need"] = unmet_need
+    if llm_ebf["unmet_need"]:
+        ebf["unmet_need"] = llm_ebf["unmet_need"]
 
-    # Update dominant emotion pattern after enough data
     if ebf["total_message_count"] >= 5:
         ebf["dominant_emotion_pattern"] = (
-            f"tends to be {state} with {style} communication at {arousal} energy"
+            f"tends to be {llm_ebf['state']} with {llm_ebf['style']} communication at {llm_ebf['arousal']} energy"
         )
 
-    _save(ebf)
+    _save(ebf, user_id, persona)
     return ebf
 
 
-def get_ebf() -> dict:
-    return _load()
+def get_ebf(user_id: str, persona: str = "aria") -> dict:
+    return _load(user_id, persona)
 
 
-def get_ebf_summary() -> str:
-    """Compact EBF line for the scaffold (5 tokens budget)."""
-    ebf = _load()
+def get_ebf_summary(user_id: str, persona: str = "aria") -> str:
+    """Compact EBF line for the scaffold."""
+    ebf = _load(user_id, persona)
     state = ebf.get("current_state", "neutral")
     style = ebf.get("communication_style", "neutral")
     energy = ebf.get("energy_level", "medium")
     return f"{state}, {style}, energy={energy}"
 
 
-def get_respond_directive() -> str:
-    """RESPOND line for scaffold (10 token budget)."""
-    ebf = _load()
+def get_respond_directive(user_id: str, persona: str = "aria") -> str:
+    """RESPOND line for scaffold."""
+    ebf = _load(user_id, persona)
     pref = ebf.get("response_preference", "balanced, warm, concise")
     trust = ebf.get("trust_level", 0.1)
-    # Add trust-level modulation
     if trust > 0.6:
         return f"{pref}; trust is high, can be more personal"
     return pref

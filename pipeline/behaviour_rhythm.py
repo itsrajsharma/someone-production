@@ -2,43 +2,57 @@
 Layer 4 — Behavioural Rhythm Profile
 Builds a profile of when the user is most open, stressed, or storytelling,
 by aggregating patterns across Life Snapshots.
+
+All operations are scoped by user_id + persona. No file I/O.
 """
 
-import json
-import os
 from collections import defaultdict
 from datetime import datetime
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "rhythm.json")
+from db.client import get_db
 
 _DEFAULT_RHYTHM = {
     "most_open_time": "unknown",
     "most_stressed_day": "unknown",
     "storytelling_frequency": "unknown",
     "trust_growth_rate": "unknown",
-    "last_updated": "",
-    "session_times": [],         # list of {"time_of_day": ..., "trust": ...}
+    "session_times": [],
     "snapshot_count": 0,
 }
 
+
 # ── Persistence ───────────────────────────────────────────────────────────────
 
-def _load() -> dict:
-    if not os.path.exists(DATA_PATH):
-        return dict(_DEFAULT_RHYTHM)
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
-        try:
-            data = json.load(f)
-            return {**_DEFAULT_RHYTHM, **data}
-        except json.JSONDecodeError:
-            return dict(_DEFAULT_RHYTHM)
+def _load(user_id: str, persona: str = "aria") -> dict:
+    db = get_db()
+    result = (
+        db.table("behaviour_rhythm")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("persona", persona)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        row = result.data[0]
+        return {**_DEFAULT_RHYTHM, **{k: v for k, v in row.items() if k in _DEFAULT_RHYTHM}}
+    return dict(_DEFAULT_RHYTHM)
 
 
-def _save(rhythm: dict):
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-    rhythm["last_updated"] = datetime.utcnow().isoformat()
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(rhythm, f, indent=2, ensure_ascii=False)
+def _save(rhythm: dict, user_id: str, persona: str = "aria"):
+    db = get_db()
+    row = {
+        "user_id": user_id,
+        "persona": persona,
+        "most_open_time": rhythm.get("most_open_time", "unknown"),
+        "most_stressed_day": rhythm.get("most_stressed_day", "unknown"),
+        "storytelling_frequency": rhythm.get("storytelling_frequency", "unknown"),
+        "trust_growth_rate": rhythm.get("trust_growth_rate", "unknown"),
+        "session_times": rhythm.get("session_times", []),
+        "snapshot_count": rhythm.get("snapshot_count", 0),
+        "last_updated": datetime.utcnow().isoformat(),
+    }
+    db.table("behaviour_rhythm").upsert(row, on_conflict="user_id,persona").execute()
 
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
@@ -54,14 +68,11 @@ def _most_common(items: list):
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def update_rhythm(snapshot: dict):
-    """
-    Update the Behavioural Rhythm Profile from a newly generated snapshot.
-    """
-    rhythm = _load()
+def update_rhythm(snapshot: dict, user_id: str, persona: str = "aria") -> dict:
+    """Update the Behavioural Rhythm Profile from a newly generated snapshot."""
+    rhythm = _load(user_id, persona)
     rhythm["snapshot_count"] += 1
 
-    # Record session time + trust level
     rhythm["session_times"].append({
         "time_of_day": snapshot.get("time_of_day", "unknown"),
         "trust": snapshot.get("trust_level_at_snapshot", 0.1),
@@ -71,7 +82,6 @@ def update_rhythm(snapshot: dict):
 
     sessions = rhythm["session_times"]
 
-    # Most open time: highest average trust by time_of_day
     time_trust = defaultdict(list)
     for s in sessions:
         time_trust[s["time_of_day"]].append(s["trust"])
@@ -80,7 +90,6 @@ def update_rhythm(snapshot: dict):
         avg_trust_by_time = {t: sum(v) / len(v) for t, v in time_trust.items()}
         rhythm["most_open_time"] = max(avg_trust_by_time, key=avg_trust_by_time.get)
 
-    # Trust growth rate
     if len(sessions) >= 2:
         trust_values = [s["trust"] for s in sessions]
         delta = trust_values[-1] - trust_values[0]
@@ -91,7 +100,6 @@ def update_rhythm(snapshot: dict):
         else:
             rhythm["trust_growth_rate"] = "slow"
 
-    # Storytelling frequency: avg open stories per snapshot
     if sessions:
         avg_stories = sum(s["num_stories"] for s in sessions) / len(sessions)
         if avg_stories > 2:
@@ -101,17 +109,17 @@ def update_rhythm(snapshot: dict):
         else:
             rhythm["storytelling_frequency"] = "low"
 
-    _save(rhythm)
+    _save(rhythm, user_id, persona)
     return rhythm
 
 
-def get_rhythm() -> dict:
-    return _load()
+def get_rhythm(user_id: str, persona: str = "aria") -> dict:
+    return _load(user_id, persona)
 
 
-def get_rhythm_hint() -> str:
+def get_rhythm_hint(user_id: str, persona: str = "aria") -> str:
     """Brief hint for the scaffold about user's current context."""
-    rhythm = _load()
+    rhythm = _load(user_id, persona)
     now_hour = datetime.utcnow().hour
     if 22 <= now_hour or now_hour < 2:
         return f"late night — user tends to be: {rhythm.get('most_open_time', 'unknown')} then"

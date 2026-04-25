@@ -2,115 +2,92 @@
 Layer 4 — Snapshot Engine
 Every 10-12 turns, generates a Life Snapshot from the recent conversation batch.
 Snapshots form the long-term relationship memory.
+
+All operations are scoped by user_id + persona. No file I/O.
 """
 
-import json
 import os
-import re
 from datetime import datetime
 
+from db.client import get_db
 from .turn_store import get_all_turns
 from .open_stories import get_open_stories
 
-DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "snapshots.json")
 SNAPSHOT_INTERVAL = 10  # generate snapshot every N turns
 
-# ── Persistence ───────────────────────────────────────────────────────────────
 
-def _load() -> list:
-    if not os.path.exists(DATA_PATH):
-        return []
-    with open(DATA_PATH, "r", encoding="utf-8") as f:
-        try:
-            return json.load(f)
-        except json.JSONDecodeError:
-            return []
+# ── Snapshot Extraction (LLM) ─────────────────────────────────────────────────
 
+def _generate_snapshot_llm(turns: list) -> dict:
+    from openai import OpenAI
+    import json
 
-def _save(snapshots: list):
-    os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-    with open(DATA_PATH, "w", encoding="utf-8") as f:
-        json.dump(snapshots, f, indent=2, ensure_ascii=False)
+    transcript = ""
+    for t in turns:
+        transcript += f"{t['role'].upper()}: {t['content']}\n"
 
+    prompt = f"""Analyze the exact conversation segment below and extract key information.
+Output strictly raw JSON without ANY markdown formatting or extra text.
+Schema:
+{{
+  "facts_learned": ["semantic truth 1", "semantic truth 2"],
+  "emotional_tone": "one word emotion (e.g. anxious, excited, neutral)",
+  "events": ["event 1 narrative", "event 2 narrative"]
+}}
 
-# ── Fact Extraction ───────────────────────────────────────────────────────────
+Rules:
+- facts_learned: Extract core facts about the user's life (e.g., 'Likes pizza', 'Works as engineer'). Max 5. Exclude temporary states.
+- emotional_tone: The aggregate emotional undercurrent of the user.
+- events: Real things that happened to the user. Max 3.
 
-_FACT_PATTERNS = [
-    (r"my name is ([A-Za-z\s]+)", "name: {}"),
-    (r"i(?:'m| am) ([0-9]+)(?: years old)?", "age: {}"),
-    (r"i (?:work|am working) (?:at|for|as) ([A-Za-z\s]+)", "works at: {}"),
-    (r"i live in ([A-Za-z\s,]+)", "lives in: {}"),
-    (r"i(?:'m| am) from ([A-Za-z\s,]+)", "from: {}"),
-    (r"my (?:favourite|favorite|fav) (?:place|city|country) is ([A-Za-z\s]+)", "fav place: {}"),
-    (r"my (?:favourite|favorite|fav) (?:food|fruit|dish) is ([A-Za-z\s]+)", "fav food: {}"),
-    (r"i (?:have|'ve got) (?:a|an) (younger|older)? (?:sister|brother)", "has {0} sibling"),
-    (r"i (?:don't|do not) like ([A-Za-z\s]+)", "dislikes: {}"),
-    (r"i (?:love|enjoy|like) ([A-Za-z\s]+)", "likes: {}"),
-]
+Transcript:
+{transcript}"""
 
-
-def _extract_facts(turns: list) -> list:
-    facts = []
-    for turn in turns:
-        if turn["role"] != "user":
-            continue
-        text = turn["content"]
-        for pattern, template in _FACT_PATTERNS:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                if match.lastindex:
-                    fact = template.format(*[g.strip() for g in match.groups() if g])
-                else:
-                    fact = template.format(match.group(0).strip())
-                if fact not in facts:
-                    facts.append(fact)
-    return facts[:8]  # cap at 8 facts per snapshot
-
-
-def _dominant_emotion(turns: list) -> str:
-    """Rough dominant emotion from the batch of turns."""
-    emotion_counts = {}
-    for turn in turns:
-        valence = turn.get("causal_tags", {}).get("emotion_valence", "neutral")
-        emotion_counts[valence] = emotion_counts.get(valence, 0) + 1
-    if not emotion_counts:
-        return "neutral"
-    return max(emotion_counts, key=emotion_counts.get)
-
-
-def _extract_events(turns: list) -> list:
-    """Pull out notable events mentioned by the user."""
-    events = []
-    event_patterns = [
-        r"i (had|went|started|finished|got|broke|quit|left|bought|lost|found|met)",
-        r"today (i|we|they|it)",
-        r"yesterday (i|we|they|it)",
-        r"(the|a) (?:fight|argument|meeting|interview|date|trip|job|project)",
-    ]
-    for turn in turns:
-        if turn["role"] != "user":
-            continue
-        for pattern in event_patterns:
-            if re.search(pattern, turn["content"], re.IGNORECASE):
-                events.append(turn["content"][:60].strip())
-                break
-    return list(dict.fromkeys(events))[:5]  # unique, max 5
+    try:
+        client = OpenAI(
+            api_key=os.environ["GROQ_API_KEY"],
+            base_url="https://api.groq.com/openai/v1",
+        )
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1,
+        )
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```json"):
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif content.startswith("```"):
+            content = content.split("```")[1].split("```")[0].strip()
+        result = json.loads(content)
+        return {
+            "facts_learned": result.get("facts_learned", []),
+            "emotional_tone": result.get("emotional_tone", "neutral"),
+            "events": result.get("events", []),
+        }
+    except Exception as e:
+        print(f"[Snapshot LLM Error] {e}")
+        return {"facts_learned": [], "emotional_tone": "neutral", "events": []}
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def should_generate_snapshot(turn_count: int) -> bool:
-    snapshots = _load()
-    last_snapshot_turn = len(snapshots) * SNAPSHOT_INTERVAL
+def should_generate_snapshot(turn_count: int, user_id: str, persona: str = "aria") -> bool:
+    db = get_db()
+    result = (
+        db.table("snapshots")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .eq("persona", persona)
+        .execute()
+    )
+    snap_count = result.count or 0
+    last_snapshot_turn = snap_count * SNAPSHOT_INTERVAL
     return turn_count >= last_snapshot_turn + SNAPSHOT_INTERVAL
 
 
-def generate_snapshot(ebf: dict) -> dict:
-    """
-    Generate a Life Snapshot from the most recent SNAPSHOT_INTERVAL turns.
-    Returns the snapshot dict.
-    """
-    all_turns = get_all_turns()
+def generate_snapshot(ebf: dict, user_id: str, persona: str = "aria", session_id: str = "") -> dict:
+    """Generate a Life Snapshot from the most recent SNAPSHOT_INTERVAL turns."""
+    all_turns = get_all_turns(user_id, persona)
     recent_turns = all_turns[-SNAPSHOT_INTERVAL:]
 
     now = datetime.utcnow()
@@ -124,42 +101,55 @@ def generate_snapshot(ebf: dict) -> dict:
     else:
         time_of_day = "late night"
 
-    snapshot = {
+    llm_data = _generate_snapshot_llm(recent_turns)
+    open_stories_data = get_open_stories(user_id, persona)
+
+    snapshot_row = {
+        "user_id": user_id,
+        "persona": persona,
         "date": now.strftime("%Y-%m-%d"),
         "time_of_day": time_of_day,
-        "facts_learned": _extract_facts(recent_turns),
-        "emotional_tone": _dominant_emotion(recent_turns),
+        "facts_learned": llm_data["facts_learned"],
+        "emotional_tone": llm_data["emotional_tone"],
         "energy_level": ebf.get("energy_level", "medium"),
-        "events": _extract_events(recent_turns),
+        "events": llm_data["events"],
         "open_stories": [
             {
-                "id": s["id"],
+                "id": s.get("story_id", s.get("id", "")),
                 "title": s["title"],
                 "status": s["status"],
                 "last_told": s["last_told"],
                 "summary": s["summary"][:80],
             }
-            for s in get_open_stories()
+            for s in open_stories_data
         ],
         "behaviour_signal": ebf.get("dominant_emotion_pattern", ""),
         "communication_style": ebf.get("communication_style", "neutral"),
         "trust_level_at_snapshot": ebf.get("trust_level", 0.1),
     }
 
-    snapshots = _load()
-    snapshots.append(snapshot)
-    _save(snapshots)
-    return snapshot
+    db = get_db()
+    db.table("snapshots").insert(snapshot_row).execute()
+    return snapshot_row
 
 
-def get_all_snapshots() -> list:
-    return _load()
+def get_all_snapshots(user_id: str, persona: str = "aria") -> list:
+    db = get_db()
+    result = (
+        db.table("snapshots")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("persona", persona)
+        .order("created_at")
+        .execute()
+    )
+    return result.data
 
 
-def get_accumulated_facts() -> list:
+def get_accumulated_facts(user_id: str, persona: str = "aria") -> list:
     """Gather all unique facts across all snapshots."""
     all_facts = []
-    for snap in _load():
+    for snap in get_all_snapshots(user_id, persona):
         for fact in snap.get("facts_learned", []):
             if fact not in all_facts:
                 all_facts.append(fact)
