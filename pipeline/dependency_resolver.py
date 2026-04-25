@@ -17,26 +17,29 @@ from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine
 from .turn_store import get_all_turns, extract_tags
 from db.client import get_db
 
-# ── Sentence Transformer (lazy load) ──────────────────────────────────────────
+# ── Mistral API Embeddings (lazy load) ────────────────────────────────────────
 
-_model = None
-_model_initialized = False
+_mistral_client = None
+_mistral_initialized = False
 EMBEDDINGS_AVAILABLE = False
 
-def _get_model():
-    global _model, _model_initialized, EMBEDDINGS_AVAILABLE
-    if not _model_initialized:
-        _model_initialized = True
+def _get_mistral():
+    global _mistral_client, _mistral_initialized, EMBEDDINGS_AVAILABLE
+    if not _mistral_initialized:
+        _mistral_initialized = True
         try:
-            from sentence_transformers import SentenceTransformer
-            print("[DependencyResolver] Loading SentenceTransformer...")
-            _model = SentenceTransformer("all-MiniLM-L6-v2")
+            from mistralai import Mistral
+            api_key = os.environ.get("MISTRAL_API_KEY", "").strip()
+            if not api_key:
+                raise ValueError("MISTRAL_API_KEY not found in environment.")
+            print("[DependencyResolver] Connecting to Mistral Embedding API...")
+            _mistral_client = Mistral(api_key=api_key)
             EMBEDDINGS_AVAILABLE = True
         except Exception as _e:
-            _model = None
+            _mistral_client = None
             EMBEDDINGS_AVAILABLE = False
-            print(f"[DependencyResolver] SentenceTransformer unavailable — TF-IDF fallback active: {_e}")
-    return _model
+            print(f"[DependencyResolver] Mistral embeddings unavailable — TF-IDF fallback active: {_e}")
+    return _mistral_client
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -60,7 +63,7 @@ def _sync_pgvector(all_turns: list, user_id: str, persona: str = "aria"):
     Ensure all new turns are embedded in turn_embeddings.
     Only embeds turns not already present (checked by turn_id + user_id).
     """
-    model = _get_model()
+    client = _get_mistral()
     if not all_turns or not EMBEDDINGS_AVAILABLE:
         return
 
@@ -82,7 +85,8 @@ def _sync_pgvector(all_turns: list, user_id: str, persona: str = "aria"):
     # Batch embed
     texts = [t.get("content", "") for t in to_embed]
     try:
-        embeddings = model.encode(texts).tolist()
+        response = client.embeddings.create(model="mistral-embed", inputs=texts)
+        embeddings = [item.embedding for item in response.data]
     except Exception as e:
         print(f"[DependencyResolver] Embedding failed: {e}")
         return
@@ -207,7 +211,7 @@ def resolve_dependencies(
     if not all_turns:
         return []
 
-    model = _get_model()
+    client = _get_mistral()
     if not EMBEDDINGS_AVAILABLE:
         return _fallback_resolve_dependencies(current_message, top_k, all_turns)
 
@@ -216,7 +220,8 @@ def resolve_dependencies(
         _sync_pgvector(all_turns, user_id, persona)
 
         # 2. Embed the query message
-        query_embedding = model.encode([current_message]).tolist()[0]
+        query_response = client.embeddings.create(model="mistral-embed", inputs=[current_message])
+        query_embedding = query_response.data[0].embedding
 
         # 3. Search pgvector
         matches = _pgvector_search(query_embedding, user_id, persona, top_k)

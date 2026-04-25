@@ -14,7 +14,7 @@ openai>=1.25.0                # used for Groq (OpenAI-compatible) + any future s
 mistralai>=1.0.0              # keep for legacy compatibility
 
 # ─── Embeddings ──────────────────────────────────────────────────
-sentence-transformers>=2.7.0  # all-MiniLM-L6-v2, produces vector(384)
+# Using Mistral API for embeddings (no local sentence-transformers)
 
 # ─── NLP / ML utils ──────────────────────────────────────────────
 scikit-learn>=1.4.0           # TF-IDF fallback in dependency_resolver

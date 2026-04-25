@@ -168,7 +168,7 @@ CREATE INDEX IF NOT EXISTS idx_health_reports_user ON health_reports (user_id, c
 
 -- ─────────────────────────────────────────────────────────────
 -- TURN EMBEDDINGS  (replaces ChromaDB aria_turns collection)
--- vector(384) for all-MiniLM-L6-v2
+-- vector(1024) for Mistral Embed API (mistral-embed)
 -- ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS turn_embeddings (
     id          BIGSERIAL PRIMARY KEY,
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS turn_embeddings (
     turn_pk     BIGINT NOT NULL REFERENCES turns(pk) ON DELETE CASCADE,
     turn_id     TEXT NOT NULL,               -- mirrors turns.id
     content     TEXT NOT NULL,
-    embedding   vector(384) NOT NULL,
+    embedding   vector(1024) NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (turn_id, user_id)
 );

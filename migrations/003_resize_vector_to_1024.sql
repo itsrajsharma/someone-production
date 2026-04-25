@@ -1,10 +1,19 @@
 -- ============================================================
--- Someone v1 — Supabase Helper Functions
--- Run AFTER 001_initial_schema.sql
+-- Someone v1 — Phase 2 DB Migration (Mistral API)
+-- Run this in Supabase SQL Editor to swap 384d to 1024d
 -- ============================================================
 
--- pgvector cosine similarity search function
--- Called by dependency_resolver.py as db.rpc("match_turn_embeddings", {...})
+-- 1. Truncate existing turn_embeddings (will auto-regenerate on next prompt)
+TRUNCATE TABLE turn_embeddings;
+
+-- 2. Alter the column type to 1024 dimensions
+ALTER TABLE turn_embeddings ALTER COLUMN embedding TYPE vector(1024);
+
+-- 3. Drop the old RPC (signature uses vector(384))
+DROP FUNCTION IF EXISTS match_turn_embeddings(vector(384), uuid, text, int);
+DROP FUNCTION IF EXISTS match_turn_embeddings(vector, uuid, text, int);
+
+-- 4. Recreate the RPC with vector(1024)
 CREATE OR REPLACE FUNCTION match_turn_embeddings(
     query_embedding  vector(1024),
     match_user_id    uuid,
