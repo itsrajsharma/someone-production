@@ -33,7 +33,10 @@ load_dotenv()
 app = FastAPI(title="Someone v1", version="2.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://someone-production-j5q0qu6s6-rajsharmas-projects.vercel.app",
+        "https://someone-production.vercel.app"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
