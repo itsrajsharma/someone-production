@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "v1.html", "use": "@vercel/static" }
+  ],
+  "rewrites": [
+    { "source": "/", "destination": "/v1.html" }
+  ]
+}
