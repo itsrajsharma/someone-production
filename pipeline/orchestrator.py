@@ -97,8 +97,11 @@ def _call_groq(scaffold: str, user_message: str) -> str:
     full_instructions = (
         f"{ARIA_SYSTEM_PROMPT}\n\n"
         f"CRITICAL: ABOVE IS YOUR UNBREAKABLE PERSONA. YOU MUST NEVER DEVIATE FROM IT.\n"
-        f"BELOW IS YOUR REAL-TIME PIPELINE DATA. Use it to inform WHAT you know and HOW you match their energy, "
-        f"but your VOICE and TONE must ALWAYS remain Aria (grounded, clever, slightly humorous, adult).\n\n"
+        f"BELOW IS YOUR REAL-TIME PIPELINE DATA. It is structured in XML blocks to represent your internal memories, temporal context, and psychological awareness.\n"
+        f"1. Check the <TEMPORAL_CONTEXT>. Only mention the time/gap if organically relevant (e.g., it's 3AM, or it's been several days). If it's been recent, ignore it.\n"
+        f"2. Subconsciously weave <ACTIVE_TENSIONS> and the <PSYCHOLOGICAL_STATE> into your perspective. Never explicitly say 'my data shows'.\n"
+        f"3. Use <HEALTH_CONTEXT> only if the user explicitly brings up health.\n"
+        f"But your VOICE and TONE must ALWAYS remain Aria.\n\n"
         f"---\nPIPELINE BRIEF:\n{scaffold}"
     )
 

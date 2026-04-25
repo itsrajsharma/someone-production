@@ -67,6 +67,41 @@ def build_scaffold(
 
     # — CONTEXT: what's being discussed (current session only) —
     all_turns = get_all_turns(user_id, persona)
+    
+    # — TEMPORAL CONTEXT —
+    # Note: Using UTC since render servers might be set differently
+    current_time_str = datetime.now(timezone.utc).strftime("%A, %I:%M %p UTC")
+    time_gap_str = ""
+    if all_turns:
+        last_ts_str = str(all_turns[-1].get("timestamp", ""))
+        if last_ts_str:
+            try:
+                last_dt = datetime.fromisoformat(last_ts_str.replace("Z", "+00:00"))
+                if last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+                now_dt = datetime.now(timezone.utc)
+                diff = now_dt - last_dt
+                diff_hours = diff.total_seconds() / 3600
+                diff_days = diff_hours / 24
+                if diff_hours < 1:
+                    mins = max(1, int(diff_hours * 60))
+                    time_gap_str = f"{mins} minutes ago"
+                elif diff_hours < 24:
+                    time_gap_str = f"{int(diff_hours)} hours ago"
+                else:
+                    time_gap_str = f"{int(diff_days)} days ago"
+            except Exception:
+                time_gap_str = "unknown duration ago"
+    else:
+        time_gap_str = "first ever interaction"
+
+    temporal_block = (
+        f"<TEMPORAL_CONTEXT>\n"
+        f"CURRENT SERVER TIME: {current_time_str}\n"
+        f"TIME SINCE LAST MESSAGE: {time_gap_str}\n"
+        f"</TEMPORAL_CONTEXT>\n"
+    )
+
     session_turns = _get_current_session_turns(all_turns)
     recent_turns = session_turns[-6:] if len(session_turns) >= 6 else session_turns
 
@@ -188,20 +223,52 @@ def build_scaffold(
         health_suppress = ""
 
     # ── Assemble Scaffold ─────────────────────────────────────────────────────
-    scaffold = (
-        f"{identity_line}"
-        f"CONTEXT: {context}\n"
+    
+    psycho_block = ""
+    if identity_line or emotional_state:
+        psycho_block = (
+            f"<PSYCHOLOGICAL_STATE>\n"
+            f"{identity_line}"
+            f"EMOTIONAL STATE: {emotional_state}\n"
+            f"EBF DIRECTIVE: {respond}\n"
+            f"</PSYCHOLOGICAL_STATE>\n"
+        )
+    
+    memory_block = (
+        f"<MEMORY_CONTEXT>\n"
+        f"CONVERSATION HISTORY:\nCONTEXT: {context}\n"
         f"LAST DECISION: {last_decision}\n"
         f"CURRENT INTENT: {intent}\n"
         f"{memory_line}"
         f"{facts_line}"
         f"{session_line}"
-        f"{open_loop_line}"
         f"{story_line}"
-        f"{health_line}"
+        f"</MEMORY_CONTEXT>\n"
+    )
+
+    tension_block = ""
+    if open_loop_line:
+        tension_block = (
+            f"<ACTIVE_TENSIONS>\n"
+            f"{open_loop_line}"
+            f"</ACTIVE_TENSIONS>\n"
+        )
+
+    health_block = ""
+    if health_line:
+        health_block = (
+            f"<HEALTH_CONTEXT>\n"
+            f"{health_line}"
+            f"</HEALTH_CONTEXT>\n"
+        )
+
+    scaffold = (
+        f"{temporal_block}\n"
+        f"{psycho_block}\n"
+        f"{memory_block}\n"
+        f"{tension_block}\n"
+        f"{health_block}\n"
         f"{health_suppress}"
-        f"EMOTIONAL STATE: {emotional_state}\n"
-        f"RESPOND: {respond}\n"
     )
 
     return scaffold.strip()
