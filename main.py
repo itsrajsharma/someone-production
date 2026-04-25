@@ -238,11 +238,11 @@ def intro(
             f"- Ends with a soft open question OR a statement that gently invites response\n"
             f"- Never say 'How can I help' or 'Welcome back'\n"
             f"- Never use the word 'delve'\n"
-            f"- Address the user as Raj\n"
+            f"- Speak directly to the user naturally\n"
             f"- Feel alive, literary, specific — never generic"
         )
         temperature, max_tokens = 0.93, 90
-        fallback = "The space between your last message and this one had its own texture, Raj. I kept it warm."
+        fallback = "The space between your last message and this one had its own texture. I kept it warm."
 
     elif persona == "oracle":
         flavour_name, flavour_desc = random.choice(_ORACLE_FLAVOURS)
@@ -255,11 +255,11 @@ def intro(
             f"- Max 36 words total\n"
             f"- Always grounded. Never preachy\n"
             f"- Never starts with 'Remember', 'Always', or 'In life'\n"
-            f"- Address the user as Raj\n"
+            f"- Address the user naturally but directly\n"
             f"- Sounds like something said across a fire, not a stage"
         )
         temperature, max_tokens = 0.88, 80
-        fallback = "You've been showing up consistently, Raj. That's rarer than talent. Keep that."
+        fallback = "You've been showing up consistently. That's rarer than talent. Keep that."
 
     else:
         raise HTTPException(status_code=404, detail="Unknown persona")
