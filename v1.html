@@ -572,7 +572,14 @@
 const API = 'https://someone-rh2d.onrender.com';
 
 function _getToken()     { return localStorage.getItem('sv1_token') || ''; }
-function _getSessionId() { return localStorage.getItem('sv1_session_id') || ''; }
+function _getSessionId() { 
+    let sid = localStorage.getItem('sv1_session_id');
+    if (!sid || !sid.includes('-')) {
+        sid = crypto.randomUUID();
+        localStorage.setItem('sv1_session_id', sid);
+    }
+    return sid; 
+}
 
 function _authHeaders(extra = {}) {
     return {
@@ -599,8 +606,8 @@ function _authHeadersNoJson() {
         const token = params.get('access_token');
         if (token) {
             localStorage.setItem('sv1_token', token);
-            if (!localStorage.getItem('sv1_session_id')) {
-                localStorage.setItem('sv1_session_id', 'sess_' + Math.random().toString(36).substr(2, 9));
+            if (!localStorage.getItem('sv1_session_id') || !localStorage.getItem('sv1_session_id').includes('-')) {
+                localStorage.setItem('sv1_session_id', crypto.randomUUID());
             }
             window.history.replaceState(null, '', window.location.pathname);
         }
