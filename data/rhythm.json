@@ -2,8 +2,8 @@
   "most_open_time": "evening",
   "most_stressed_day": "unknown",
   "storytelling_frequency": "low",
-  "trust_growth_rate": "slow",
-  "last_updated": "2026-03-23T17:04:35.372213",
+  "trust_growth_rate": "fast",
+  "last_updated": "2026-04-21T21:20:28.802109",
   "session_times": [
     {
       "time_of_day": "afternoon",
@@ -16,7 +16,187 @@
       "trust": 0.2,
       "tone": "neutral",
       "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.225,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.25,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.275,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.3,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.325,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "afternoon",
+      "trust": 0.35,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "afternoon",
+      "trust": 0.375,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.4,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.425,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.45,
+      "tone": "positive",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.46,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.485,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.51,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.535,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.555,
+      "tone": "neutral",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.575,
+      "tone": "anxious",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.62,
+      "tone": "frustrated",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.64,
+      "tone": "exhausted",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.685,
+      "tone": "warm",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 0.745,
+      "tone": "tired",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.765,
+      "tone": "playful",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.79,
+      "tone": "anxious",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.835,
+      "tone": "tired",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.86,
+      "tone": "excited",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.885,
+      "tone": "longing",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.91,
+      "tone": "anxious",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.935,
+      "tone": "loving",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.96,
+      "tone": "playful",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "evening",
+      "trust": 0.985,
+      "tone": "playful",
+      "num_stories": 0
+    },
+    {
+      "time_of_day": "late night",
+      "trust": 1.0,
+      "tone": "neutral",
+      "num_stories": 0
     }
   ],
-  "snapshot_count": 2
+  "snapshot_count": 32
 }

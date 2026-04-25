@@ -17,16 +17,26 @@ from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine
 from .turn_store import get_all_turns, extract_tags
 from db.client import get_db
 
-# ── Sentence Transformer (loaded once) ───────────────────────────────────────
+# ── Sentence Transformer (lazy load) ──────────────────────────────────────────
 
-try:
-    from sentence_transformers import SentenceTransformer
-    _model = SentenceTransformer("all-MiniLM-L6-v2")
-    EMBEDDINGS_AVAILABLE = True
-except Exception as _e:
-    _model = None
-    EMBEDDINGS_AVAILABLE = False
-    print(f"[DependencyResolver] SentenceTransformer unavailable — TF-IDF fallback active: {_e}")
+_model = None
+_model_initialized = False
+EMBEDDINGS_AVAILABLE = False
+
+def _get_model():
+    global _model, _model_initialized, EMBEDDINGS_AVAILABLE
+    if not _model_initialized:
+        _model_initialized = True
+        try:
+            from sentence_transformers import SentenceTransformer
+            print("[DependencyResolver] Loading SentenceTransformer...")
+            _model = SentenceTransformer("all-MiniLM-L6-v2")
+            EMBEDDINGS_AVAILABLE = True
+        except Exception as _e:
+            _model = None
+            EMBEDDINGS_AVAILABLE = False
+            print(f"[DependencyResolver] SentenceTransformer unavailable — TF-IDF fallback active: {_e}")
+    return _model
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -50,6 +60,7 @@ def _sync_pgvector(all_turns: list, user_id: str, persona: str = "aria"):
     Ensure all new turns are embedded in turn_embeddings.
     Only embeds turns not already present (checked by turn_id + user_id).
     """
+    model = _get_model()
     if not all_turns or not EMBEDDINGS_AVAILABLE:
         return
 
@@ -71,7 +82,7 @@ def _sync_pgvector(all_turns: list, user_id: str, persona: str = "aria"):
     # Batch embed
     texts = [t.get("content", "") for t in to_embed]
     try:
-        embeddings = _model.encode(texts).tolist()
+        embeddings = model.encode(texts).tolist()
     except Exception as e:
         print(f"[DependencyResolver] Embedding failed: {e}")
         return
@@ -196,6 +207,7 @@ def resolve_dependencies(
     if not all_turns:
         return []
 
+    model = _get_model()
     if not EMBEDDINGS_AVAILABLE:
         return _fallback_resolve_dependencies(current_message, top_k, all_turns)
 
@@ -204,7 +216,7 @@ def resolve_dependencies(
         _sync_pgvector(all_turns, user_id, persona)
 
         # 2. Embed the query message
-        query_embedding = _model.encode([current_message]).tolist()[0]
+        query_embedding = model.encode([current_message]).tolist()[0]
 
         # 3. Search pgvector
         matches = _pgvector_search(query_embedding, user_id, persona, top_k)

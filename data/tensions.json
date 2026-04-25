@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "id": "3d169445",
+    "type": "deflected_emotion",
+    "summary": "User deflected after: Raj, I appreciate the vote of confidence—but let's not turn",
+    "status": "resolved",
+    "created_at": "2026-04-04T00:20:05.592084",
+    "resolved_at": "2026-04-04T00:20:34.130404"
+  },
+  {
+    "id": "f54fede6",
+    "type": "deflected_emotion",
+    "summary": "User deflected after: Love you too. \n\nThough I'm starting to think those three wor",
+    "status": "open",
+    "created_at": "2026-04-05T20:28:49.776327"
+  }
+]
