@@ -2,3 +2,5 @@ someone/
 .messages.json
 __pycache__/
 .env
+data/
+*.csv
