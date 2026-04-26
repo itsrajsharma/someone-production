@@ -83,11 +83,12 @@ def update_identity_if_needed(user_id: str, persona: str = "aria"):
         timeline += f"FACTS: {', '.join(s.get('facts_learned', []))}\n"
 
     prompt = f"""You are analyzing a human's life timeline based on recent conversation snapshots.
-Synthesize a deep, grounded psychological understanding of this user. No fluff.
+Synthesize a deep, grounded psychological understanding of this user along with their spatial/daily schedule.
 Output strictly raw JSON without ANY markdown formatting.
 Schema:
 {{
-  "psychological_profile": "A deeply empathetic, 2-3 sentence biography evaluating their personality, humor, sensitivities, and how they think.",
+  "psychological_profile": "A deeply empathetic, 2-3 sentence biography evaluating their personality, sensitivities, and how they think.",
+  "daily_routine": ["Works late nights", "Goes to office at 9 AM"],
   "current_life_chapter": "A 1-2 sentence summary of what overarching phase they are currently in.",
   "enduring_traits": ["Trait 1", "Trait 2"]
 }}
@@ -111,7 +112,12 @@ Timeline:
         elif content.startswith("```"):
             content = content.split("```")[1].split("```")[0].strip()
         result = json.loads(content)
-        identity["psychological_profile"] = result.get("psychological_profile", identity["psychological_profile"])
+        parsed_profile = result.get("psychological_profile", identity["psychological_profile"])
+        routine_array = result.get("daily_routine", [])
+        if routine_array:
+            parsed_profile += "\n\nDAILY ROUTINE:\n" + "\n".join(f"- {r}" for r in routine_array)
+            
+        identity["psychological_profile"] = parsed_profile
         identity["current_life_chapter"] = result.get("current_life_chapter", identity["current_life_chapter"])
         identity["enduring_traits"] = result.get("enduring_traits", identity["enduring_traits"])
     except Exception as e:

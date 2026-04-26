@@ -90,6 +90,9 @@ def _get_session_id(x_session_id: str = Header(default="")) -> str:
     """Extract session_id from X-Session-ID header. Generate one if missing."""
     return x_session_id.strip() or str(uuid.uuid4())
 
+def _get_local_time(x_local_time: str = Header(default="unknown time")) -> str:
+    return x_local_time.strip() or "unknown time"
+
 
 # ── TTS ───────────────────────────────────────────────────────────────────────
 
@@ -166,12 +169,13 @@ def chat(
     body: ChatRequest,
     user_id: str = Depends(_verify_token),
     session_id: str = Depends(_get_session_id),
+    local_time: str = Depends(_get_local_time),
 ):
     user_message = body.message.strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Empty message")
 
-    reply = run_pipeline(user_message, user_id, session_id, persona="aria")
+    reply = run_pipeline(user_message, user_id, session_id, local_time=local_time, persona="aria")
     audio_b64 = get_audio(reply)
 
     return {"status": "success", "reply": reply, "audio": audio_b64}

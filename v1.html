@@ -582,10 +582,17 @@ function _getSessionId() {
 }
 
 function _authHeaders(extra = {}) {
+    const localTimeStr = new Date().toLocaleString(undefined, {
+        weekday: 'long', 
+        hour: 'numeric', 
+        minute: 'numeric',
+        hour12: true
+    });
     return {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer ' + _getToken(),
         'X-Session-ID': _getSessionId(),
+        'X-Local-Time': localTimeStr,
         ...extra,
     };
 }

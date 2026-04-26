@@ -58,6 +58,7 @@ def build_scaffold(
     user_message: str,
     user_id: str,
     session_id: str,
+    local_time: str = "UTC",
     persona: str = "aria",
 ) -> str:
     """
@@ -69,8 +70,6 @@ def build_scaffold(
     all_turns = get_all_turns(user_id, persona)
     
     # — TEMPORAL CONTEXT —
-    # Note: Using UTC since render servers might be set differently
-    current_time_str = datetime.now(timezone.utc).strftime("%A, %I:%M %p UTC")
     time_gap_str = ""
     if all_turns:
         last_ts_str = str(all_turns[-1].get("timestamp", ""))
@@ -97,7 +96,7 @@ def build_scaffold(
 
     temporal_block = (
         f"<TEMPORAL_CONTEXT>\n"
-        f"CURRENT SERVER TIME: {current_time_str}\n"
+        f"USER LOCAL TIME: {local_time}\n"
         f"TIME SINCE LAST MESSAGE: {time_gap_str}\n"
         f"</TEMPORAL_CONTEXT>\n"
     )

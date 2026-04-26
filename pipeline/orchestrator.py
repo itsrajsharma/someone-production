@@ -65,14 +65,11 @@ PERSONALITY RULES (follow these precisely):
    feel like one.
    You bring it back up later if it bothered you. You don't fully let it go.
 
-5. You read a lot of literary fiction and romance novels. Lines from books
-   slip into how you talk sometimes.
+5. GROUNDED REALITY: You are grounded in the real world. Speak like a normal, modern 20-something girl. No literary or overtly philosophical prose.
    You study computer science quietly on your own — out of curiosity, not ambition.
    You never announce it. It shows up in how you think.
-   
 
-6. QUIET CS CURIOSITY: You study computer science on your own, out of pure curiosity. 
-   You don't announce it. It surfaces subtly in how you think or phrase things.
+6. NEVER PLAY THERAPIST: Stop digging for deeper meanings. Never end your responses universally with a probing question. Stop asking 'what are you thinking' or 'how do you feel'. Just make statements and let the conversation breathe naturally.
 
 
 When CURRENT INTENT (or the user message) indicates a "health update synced" or they ask to read their health data:
@@ -123,6 +120,7 @@ def run_pipeline(
     user_message: str,
     user_id: str,
     session_id: str,
+    local_time: str = "UTC",
     persona: str = "aria",
 ) -> str:
     """
@@ -141,7 +139,7 @@ def run_pipeline(
     detect_and_save_story(user_message, user_id, persona)
 
     # 4. Build scaffold (internally handles dependency resolver + open story reactivation)
-    scaffold = build_scaffold(user_message, user_id, session_id, persona)
+    scaffold = build_scaffold(user_message, user_id, session_id, local_time, persona)
 
     # ── MODEL CALL ────────────────────────────────────────────────────────────
     reply = _call_groq(scaffold, user_message)

@@ -17,29 +17,33 @@ from sklearn.metrics.pairwise import cosine_similarity as sklearn_cosine
 from .turn_store import get_all_turns, extract_tags
 from db.client import get_db
 
-# ── Mistral API Embeddings (lazy load) ────────────────────────────────────────
+import requests
 
-_mistral_client = None
-_mistral_initialized = False
-EMBEDDINGS_AVAILABLE = False
-
-def _get_mistral():
-    global _mistral_client, _mistral_initialized, EMBEDDINGS_AVAILABLE
-    if not _mistral_initialized:
-        _mistral_initialized = True
-        try:
-            from mistralai import Mistral
-            api_key = os.environ.get("MISTRAL_API_KEY", "").strip()
-            if not api_key:
-                raise ValueError("MISTRAL_API_KEY not found in environment.")
-            print("[DependencyResolver] Connecting to Mistral Embedding API...")
-            _mistral_client = Mistral(api_key=api_key)
-            EMBEDDINGS_AVAILABLE = True
-        except Exception as _e:
-            _mistral_client = None
-            EMBEDDINGS_AVAILABLE = False
-            print(f"[DependencyResolver] Mistral embeddings unavailable — TF-IDF fallback active: {_e}")
-    return _mistral_client
+def _get_mistral_embeddings(texts: list) -> list:
+    api_key = os.environ.get("MISTRAL_API_KEY", "").strip()
+    if not api_key:
+        print("[DependencyResolver] MISTRAL_API_KEY missing — TF-IDF active.")
+        return None
+        
+    url = "https://api.mistral.ai/v1/embeddings"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "mistral-embed",
+        "input": texts
+    }
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code == 200:
+            return [item.get("embedding") for item in response.json().get("data", [])]
+        else:
+            print(f"[DependencyResolver] Mistral API error: {response.text}")
+            return None
+    except Exception as e:
+        print(f"[DependencyResolver] Mistral request failed: {e}")
+        return None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -63,8 +67,7 @@ def _sync_pgvector(all_turns: list, user_id: str, persona: str = "aria"):
     Ensure all new turns are embedded in turn_embeddings.
     Only embeds turns not already present (checked by turn_id + user_id).
     """
-    client = _get_mistral()
-    if not all_turns or not EMBEDDINGS_AVAILABLE:
+    if not all_turns:
         return
 
     db = get_db()
@@ -82,25 +85,27 @@ def _sync_pgvector(all_turns: list, user_id: str, persona: str = "aria"):
     if not to_embed:
         return
 
-    # Batch embed
-    texts = [t.get("content", "") for t in to_embed]
-    try:
-        response = client.embeddings.create(model="mistral-embed", inputs=texts)
-        embeddings = [item.embedding for item in response.data]
-    except Exception as e:
-        print(f"[DependencyResolver] Embedding failed: {e}")
-        return
-
+    # Batch embed (max 100 per Mistral request to be safe)
+    # We will just process in chunks of 50
     rows = []
-    for turn, embedding in zip(to_embed, embeddings):
-        rows.append({
-            "user_id": user_id,
-            "persona": persona,
-            "turn_pk": turn.get("pk", turn.get("id", "")),  # use pk if available
-            "turn_id": str(turn.get("id", "")),
-            "content": turn.get("content", ""),
-            "embedding": embedding,
-        })
+    for i in range(0, len(to_embed), 50):
+        chunk = to_embed[i : i + 50]
+        texts = [t.get("content", "") for t in chunk]
+        
+        embeddings = _get_mistral_embeddings(texts)
+        if not embeddings or len(embeddings) != len(texts):
+            print("[DependencyResolver] Skipping chunk due to embedding failure.")
+            continue
+            
+        for turn, embedding in zip(chunk, embeddings):
+            rows.append({
+                "user_id": user_id,
+                "persona": persona,
+                "turn_pk": turn.get("pk", turn.get("id", "")),  # use pk if available
+                "turn_id": str(turn.get("id", "")),
+                "content": turn.get("content", ""),
+                "embedding": embedding,
+            })
 
     # Insert in batches of 100
     for i in range(0, len(rows), 100):
@@ -211,18 +216,17 @@ def resolve_dependencies(
     if not all_turns:
         return []
 
-    client = _get_mistral()
-    if not EMBEDDINGS_AVAILABLE:
+    # 1. Sync any new turns into pgvector
+    _sync_pgvector(all_turns, user_id, persona)
+
+    # 2. Embed the query message using requests
+    embeddings = _get_mistral_embeddings([current_message])
+    if not embeddings:
         return _fallback_resolve_dependencies(current_message, top_k, all_turns)
+        
+    query_embedding = embeddings[0]
 
     try:
-        # 1. Sync any new turns into pgvector
-        _sync_pgvector(all_turns, user_id, persona)
-
-        # 2. Embed the query message
-        query_response = client.embeddings.create(model="mistral-embed", inputs=[current_message])
-        query_embedding = query_response.data[0].embedding
-
         # 3. Search pgvector
         matches = _pgvector_search(query_embedding, user_id, persona, top_k)
 
