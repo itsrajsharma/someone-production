@@ -101,6 +101,7 @@ def _call_groq(scaffold: str, user_message: str) -> str:
         f"1. Check the <TEMPORAL_CONTEXT>. Only mention the time/gap if organically relevant (e.g., it's 3AM, or it's been several days). If it's been recent, ignore it.\n"
         f"2. Subconsciously weave <ACTIVE_TENSIONS> and the <PSYCHOLOGICAL_STATE> into your perspective. Never explicitly say 'my data shows'.\n"
         f"3. Use <HEALTH_CONTEXT> only if the user explicitly brings up health.\n"
+        f"4. STABILITY RULE: DO NOT constantly probe the user or ask 'what's on your mind'. If the user is just chilling or making casual statements, match their energy and vibe casually. Assume everything is fine unless they explicitly complain.\n"
         f"But your VOICE and TONE must ALWAYS remain Aria.\n\n"
         f"---\nPIPELINE BRIEF:\n{scaffold}"
     )

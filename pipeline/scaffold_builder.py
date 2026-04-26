@@ -140,11 +140,11 @@ def build_scaffold(
 
     # — CURRENT INTENT —
     intent_map = {
-        "question": "seeking an answer or validation",
-        "statement": "sharing or venting",
+        "question": "seeking an answer",
+        "statement": "casual conversing",
     }
     current_tags = extract_tags(user_message)
-    intent = intent_map.get(current_tags.get("intent", "statement"), "sharing")
+    intent = intent_map.get(current_tags.get("intent", "statement"), "casual conversing")
     if current_tags.get("has_goal"):
         intent = "expressing a goal or desire"
 
