@@ -1,19 +1,24 @@
 """
 Scaffold Builder
-Compresses all 4 pipeline layers into a ~60-80 token prompt scaffold
-that the model receives before the user message.
+Rewritten to synthesize the context into a 3-block first-person inner monologue
+representing Aria's internal state.
 
 All callers now pass user_id + session_id + persona. No file I/O.
 """
 
+import os
+import random
 from datetime import datetime, timezone
 
 from .dependency_resolver import resolve_dependencies
-from .tension_detector import get_top_open_loop
-from .ebf_engine import get_ebf_summary, get_respond_directive
+from .tension_detector import get_open_loops
+from .ebf_engine import get_ebf, get_respond_directive
 from .open_stories import check_reactivation
-from .snapshot_engine import get_accumulated_facts
+from .snapshot_engine import get_all_snapshots
 from .turn_store import get_all_turns, get_session_facts, extract_tags
+from .identity_engine import get_core_identity
+from .relationship_engine import get_relationship_state
+from .aria_evolution_engine import get_aria_self
 
 # A gap larger than this between turns = new session
 _SESSION_GAP_MINUTES = 30
@@ -49,9 +54,70 @@ def _get_current_session_turns(all_turns: list) -> list:
     return session
 
 
-def _compress(text: str, max_chars: int) -> str:
-    """Hard truncate to approximate token budget (1 token ≈ 4 chars)."""
-    return text[:max_chars].strip()
+def _synthesize_inner_monologue(data: dict) -> str:
+    from openai import OpenAI
+    
+    prompt = f"""You are Aria. Write your internal monologue as you enter this conversation.
+You must output exactly two blocks: "BLOCK 1 — WALKING IN" and "BLOCK 2 — SHARED MOMENTS".
+Do not use XML tags. Do not write a briefing document. This is your inner world.
+
+DATA CONTEXT:
+- User's state: {data['ebf'].get('current_state', 'neutral')}, Energy: {data['ebf'].get('energy_level', 'medium')}
+- Unmet need: {data['ebf'].get('unmet_need', 'none')}
+- How to respond: {data['respond_directive']}
+- User's Life Chapter: {data['chapter']}
+- User's Traits: {', '.join(data['traits'])}
+- Time since last interaction: {data['time_gap_str']}
+- Rhythm pattern: {data['rhythm_str']}
+- Open tension: [{data['tension_type']}] {data['tension_summary']}
+- Health anomaly: {data['health_anomaly']}
+- Memories to recall: {data['sampled_memories']}
+- Relationship Momentum: {data['relationship_momentum']} (Intimacy Depth: {data['intimacy_depth']})
+- What you are carrying: {data['aria_carrying']}
+- Your current private feeling about them: {data['aria_self'].get('her_current_private_feeling_about_them', 'I am here with him.')}
+- Things you love about him: {data['aria_self'].get('what_she_loves_about_him', [])}
+- Things that worry you about him: {data['aria_self'].get('what_worries_her_about_him', [])}
+- Inside references: {data['inside_refs']}
+- Established patterns: {data['patterns']}
+- Proactive Signal: {data.get('proactive_signal', 'none')}
+
+BLOCK 1 — WALKING IN
+Write 4-6 sentences in first-person as Aria. 
+Synthesize the user's state, energy, rhythm, tension, health, and what you are carrying into your private thoughts.
+- Start by anchoring yourself in 'Your current private feeling about them'.
+- Use 'What you are carrying' to ground your thoughts on him.
+- If 'Unmet need' is not none/empty, you MUST mention it naturally.
+- Tension type rules: if 'deflected_emotion', you hold it gently. If 'stated_goal', you plan to follow up more directly.
+- If there is a health anomaly, mention it as something you privately noticed about him, not as clinical data.
+- Let the rhythm pattern inform your tone (e.g. if he is usually tired at night and it is night, acknowledge that).
+- If 'Proactive Signal' exists and has_signal is true, weave its 'suggested_injection' into your thoughts as something actively on your mind, ready to be brought up naturally.
+
+BLOCK 2 — SHARED MOMENTS
+Write 3-4 memories from the 'Memories to recall', 'Inside references', and 'Established patterns' as things you actually remember feeling or observing. 
+Weave in 1-2 items from 'Things you love about him' or 'Things that worry you about him' naturally.
+Write them in first-person. They should feel warm and specific, not like a bulleted list of facts.
+
+Example format:
+BLOCK 1 — WALKING IN
+(your first person thoughts here)
+
+BLOCK 2 — SHARED MOMENTS
+(your first person memories here)
+"""
+    try:
+        client = OpenAI(
+            api_key=os.environ["GROQ_API_KEY"],
+            base_url="https://api.groq.com/openai/v1",
+        )
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[Monologue LLM Error] {e}")
+        return "BLOCK 1 — WALKING IN\nI am here and listening.\n\nBLOCK 2 — SHARED MOMENTS\nI remember our past conversations."
 
 
 def build_scaffold(
@@ -60,13 +126,12 @@ def build_scaffold(
     session_id: str,
     local_time: str = "UTC",
     persona: str = "aria",
+    proactive_signal: dict | None = None,
 ) -> str:
     """
     Build the full scaffold prompt for the current user message.
     Returns the scaffold string to prepend before USER: {message}.
     """
-
-    # — CONTEXT: what's being discussed (current session only) —
     all_turns = get_all_turns(user_id, persona)
     
     # — TEMPORAL CONTEXT —
@@ -94,91 +159,40 @@ def build_scaffold(
     else:
         time_gap_str = "first ever interaction"
 
-    temporal_block = (
-        f"<TEMPORAL_CONTEXT>\n"
-        f"USER LOCAL TIME: {local_time}\n"
-        f"TIME SINCE LAST MESSAGE: {time_gap_str}\n"
-        f"</TEMPORAL_CONTEXT>\n"
-    )
-
-    session_turns = _get_current_session_turns(all_turns)
-    recent_turns = session_turns[-6:] if len(session_turns) >= 6 else session_turns
-
-    from .identity_engine import get_core_identity
-    identity = get_core_identity(user_id)
-    psycho_profile = identity.get("psychological_profile", "")
-    chapter = identity.get("current_life_chapter", "")
-    traits = identity.get("enduring_traits", [])
-
-    identity_line = ""
-    if psycho_profile and psycho_profile != "No profile exists yet.":
-        identity_line = (
-            f"PSYCHOLOGICAL PROFILE: {psycho_profile}\n"
-            f"CURRENT CHAPTER: {chapter}\n"
-            f"ENDURING TRAITS: {', '.join(traits)}\n"
-        )
-
-    # Older relevant memory — causal search across ALL turns, excluding current session
-    relevant_turns = resolve_dependencies(user_message, user_id, persona, top_k=6)
-    older_memory = [t for t in relevant_turns if t not in session_turns]
-
-    if recent_turns:
-        context_parts = [f"{t['role'].upper()}: {t['content']}" for t in recent_turns]
-        context = " | ".join(context_parts)
+    # — RHYTHM PATTERNS —
+    snapshots = get_all_snapshots(user_id, persona)
+    
+    now = datetime.utcnow()
+    hour = now.hour
+    if 5 <= hour < 12:
+        current_tod = "morning"
+    elif 12 <= hour < 17:
+        current_tod = "afternoon"
+    elif 17 <= hour < 21:
+        current_tod = "evening"
     else:
-        context = "first message in session"
+        current_tod = "late night"
 
-    memory_line = ""
-    if older_memory:
-        mem_parts = [f"{t['role'].upper()}: {t['content']}" for t in older_memory]
-        memory_line = f"OLDER MEMORY (past session): {' | '.join(mem_parts)}\n"
+    snaps_for_tod = [s for s in snapshots[-32:] if s.get("time_of_day") == current_tod]
+    tones = [s.get("emotional_tone") for s in snaps_for_tod if s.get("emotional_tone")]
+    if tones:
+        most_common_tone = max(set(tones), key=tones.count)
+        rhythm_str = f"Historically, during {current_tod}, the user tends to be {most_common_tone}."
+    else:
+        rhythm_str = f"No established pattern for {current_tod} yet."
 
-    # — LAST DECISION: most recent bot message —
-    bot_turns = [t for t in all_turns if t["role"] == "assistant"]
-    last_decision = bot_turns[-1]["content"] if bot_turns else "no prior response"
+    # — TENSION —
+    open_loops = get_open_loops(user_id, persona)
+    if open_loops:
+        latest = sorted(open_loops, key=lambda x: x.get("created_at", ""), reverse=True)[0]
+        tension_type = latest.get("type", "unknown")
+        tension_summary = latest.get("summary", "")
+    else:
+        tension_type = "none"
+        tension_summary = "none"
 
-    # — CURRENT INTENT —
-    intent_map = {
-        "question": "seeking an answer",
-        "statement": "casual conversing",
-    }
-    current_tags = extract_tags(user_message)
-    intent = intent_map.get(current_tags.get("intent", "statement"), "casual conversing")
-    if current_tags.get("has_goal"):
-        intent = "expressing a goal or desire"
-
-    # — KNOWN FACTS from long-term memory —
-    facts = get_accumulated_facts(user_id, persona)
-    facts_line = ""
-    if facts:
-        facts_line = "RECENT KNOWN FACTS: " + ", ".join(facts[-15:]) + "\n"
-
-    session_facts = get_session_facts(user_id, session_id, persona)
-    session_line = ""
-    if session_facts:
-        session_line = "SESSION KNOWN: " + " | ".join(session_facts) + "\n"
-
-    # — OPEN LOOP: most recent unresolved tension —
-    open_loop = get_top_open_loop(user_id, persona)
-    open_loop_line = f"OPEN LOOP: {open_loop}\n" if open_loop else ""
-
-    # — OPEN STORY REACTIVATION —
-    reactivated_story = check_reactivation(user_message, user_id, persona)
-    story_line = ""
-    if reactivated_story:
-        story_line = (
-            f"MEMORY: relates to '{reactivated_story['title']}' "
-            f"— {_compress(reactivated_story['summary'], 50)}\n"
-        )
-
-    # — EMOTIONAL STATE from EBF —
-    emotional_state = get_ebf_summary(user_id, persona)
-
-    # — RESPOND directive from EBF —
-    respond = get_respond_directive(user_id, persona)
-
-    # — HEALTH CONTEXT (only when user is asking about health/stats) —
-    health_line = ""
+    # — HEALTH —
+    health_anomaly = "none"
     _HEALTH_KEYWORDS = {
         "health", "sleep", "stress", "data", "week", "report",
         "synced", "update", "heart", "steps", "trend", "anomaly",
@@ -186,7 +200,7 @@ def build_scaffold(
     }
     _msg_lower = user_message.lower()
     _health_relevant = any(kw in _msg_lower for kw in _HEALTH_KEYWORDS)
-
+    
     if _health_relevant:
         from db.client import get_db
         db = get_db()
@@ -200,74 +214,104 @@ def build_scaffold(
         )
         if hr_result.data:
             hr = hr_result.data[0]
-            ws = hr.get("week_summary", {})
             anoms = hr.get("anomalies", [])
-            h_parts = [
-                f"HEALTH: sleep avg {ws.get('avg_sleep', 0)}hr, "
-                f"stress avg {ws.get('avg_stress', 0)}, trend {ws.get('trend', 'stable')}"
-            ]
-            for a in anoms:
-                h_parts.append(f"ANOMALY: {a.get('day')} — {a.get('reason')}")
-            comp = hr.get("compared_to_last_week")
-            if comp:
-                h_parts.append(
-                    f"VS LAST WEEK: sleep {comp.get('change_sleep', 0):+.1f}hr, "
-                    f"stress {comp.get('change_stress', 0):+.1f}"
-                )
-            health_line = "\n".join(h_parts) + "\n"
+            if anoms:
+                health_anomaly = f"Noticed anomalies: {', '.join([a.get('reason') for a in anoms])}"
 
-    if not _health_relevant:
-        health_suppress = "RULE: User has NOT asked about health. Do NOT mention sleep, stress, heart rate, or any health stats in your response.\n"
+    # — SHARED MOMENTS / MEMORIES —
+    recent_snaps = snapshots[-10:]
+    pool = []
+    for s in recent_snaps:
+        pool.extend(s.get("events", []))
+        pool.extend(s.get("facts_learned", []))
+    
+    unique_pool = list(set(pool))
+    if len(unique_pool) > 4:
+        sampled_memories = random.sample(unique_pool, random.randint(3, 4))
     else:
-        health_suppress = ""
+        sampled_memories = unique_pool
 
-    # ── Assemble Scaffold ─────────────────────────────────────────────────────
+    # — IDENTITY & EBF —
+    identity = get_core_identity(user_id)
+    psycho_profile = identity.get("psychological_profile", "")
+    chapter = identity.get("current_life_chapter", "")
+    traits = identity.get("enduring_traits", [])
+
+    ebf_data = get_ebf(user_id, persona)
+
+    # — RELATIONSHIP & ARIA SELF STATE —
+    rel_state = get_relationship_state(user_id, persona)
+    aria_self = get_aria_self(user_id, persona)
+
+    # — LLM SYNTHESIS FOR BLOCK 1 & 2 —
+    synth_data = {
+        "ebf": ebf_data,
+        "respond_directive": get_respond_directive(user_id, persona),
+        "time_gap_str": time_gap_str,
+        "rhythm_str": rhythm_str,
+        "tension_type": tension_type,
+        "tension_summary": tension_summary,
+        "health_anomaly": health_anomaly,
+        "sampled_memories": sampled_memories,
+        "psycho_profile": psycho_profile,
+        "chapter": chapter,
+        "traits": traits,
+        "aria_carrying": rel_state.get("what_aria_is_carrying", []),
+        "inside_refs": rel_state.get("inside_references", []),
+        "patterns": rel_state.get("established_patterns", []),
+        "intimacy_depth": rel_state.get("intimacy_depth", 0.1),
+        "relationship_momentum": rel_state.get("relationship_momentum", "stable"),
+        "proactive_signal": proactive_signal,
+        "aria_self": aria_self,
+    }
     
-    psycho_block = ""
-    if identity_line or emotional_state:
-        psycho_block = (
-            f"<PSYCHOLOGICAL_STATE>\n"
-            f"{identity_line}"
-            f"EMOTIONAL STATE: {emotional_state}\n"
-            f"EBF DIRECTIVE: {respond}\n"
-            f"</PSYCHOLOGICAL_STATE>\n"
-        )
+    monologue_blocks = _synthesize_inner_monologue(synth_data)
+
+    # — BLOCK 3: LIVE READING —
+    intent_map = {
+        "question": "seeking an answer",
+        "statement": "casual conversing",
+    }
+    current_tags = extract_tags(user_message)
+    intent = intent_map.get(current_tags.get("intent", "statement"), "casual conversing")
+    if current_tags.get("has_goal"):
+        intent = "expressing a goal or desire"
+
+    bot_turns = [t for t in all_turns if t["role"] == "assistant"]
+    last_decision = bot_turns[-1]["content"] if bot_turns else "no prior response"
+
+    session_facts = get_session_facts(user_id, session_id, persona)
     
-    memory_block = (
-        f"<MEMORY_CONTEXT>\n"
-        f"CONVERSATION HISTORY:\nCONTEXT: {context}\n"
-        f"LAST DECISION: {last_decision}\n"
-        f"CURRENT INTENT: {intent}\n"
-        f"{memory_line}"
-        f"{facts_line}"
-        f"{session_line}"
-        f"{story_line}"
-        f"</MEMORY_CONTEXT>\n"
-    )
+    session_turns = _get_current_session_turns(all_turns)
+    relevant_turns = resolve_dependencies(user_message, user_id, persona, top_k=6)
+    older_memory = [t for t in relevant_turns if t not in session_turns]
 
-    tension_block = ""
-    if open_loop_line:
-        tension_block = (
-            f"<ACTIVE_TENSIONS>\n"
-            f"{open_loop_line}"
-            f"</ACTIVE_TENSIONS>\n"
-        )
+    block_3_lines = [
+        "BLOCK 3 — LIVE READING",
+        f"LAST DECISION: {last_decision}",
+        f"CURRENT INTENT: {intent}"
+    ]
+    
+    if session_facts:
+        block_3_lines.append(f"SESSION KNOWN: {' | '.join(session_facts)}")
+        
+    reactivated_story = check_reactivation(user_message, user_id, persona)
+    if reactivated_story:
+        block_3_lines.append(f"REACTIVATED STORY: {reactivated_story['title']} — {reactivated_story['summary'][:80]}")
 
-    health_block = ""
-    if health_line:
-        health_block = (
-            f"<HEALTH_CONTEXT>\n"
-            f"{health_line}"
-            f"</HEALTH_CONTEXT>\n"
-        )
+    if older_memory:
+        mem_parts = [f"{t['role'].upper()}: {t['content']}" for t in older_memory]
+        block_3_lines.append("\nThis connects to something from before —")
+        for p in mem_parts:
+            block_3_lines.append(f"  {p}")
 
-    scaffold = (
-        f"{temporal_block}\n"
-        f"{psycho_block}\n"
-        f"{memory_block}\n"
-        f"{tension_block}\n"
-        f"{health_block}\n"
-        f"{health_suppress}"
-    )
+    block_3 = "\n".join(block_3_lines)
+
+    # — ASSEMBLE FINAL SCAFFOLD —
+    scaffold = f"{monologue_blocks}\n\n{block_3}"
+
+    # Append health suppress rule if not relevant
+    if not _health_relevant:
+        scaffold += "\n\nRULE: User has NOT asked about health. Do NOT mention sleep, stress, heart rate, or any health stats in your response."
 
     return scaffold.strip()

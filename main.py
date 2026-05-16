@@ -162,6 +162,7 @@ def login(body: AuthRequest):
 
 class ChatRequest(BaseModel):
     message: str
+    proactive_signal: dict | None = None
 
 
 @app.post("/chat")
@@ -175,7 +176,14 @@ def chat(
     if not user_message:
         raise HTTPException(status_code=400, detail="Empty message")
 
-    reply = run_pipeline(user_message, user_id, session_id, local_time=local_time, persona="aria")
+    reply = run_pipeline(
+        user_message,
+        user_id,
+        session_id,
+        local_time=local_time,
+        persona="aria",
+        proactive_signal=body.proactive_signal
+    )
     audio_b64 = get_audio(reply)
 
     return {"status": "success", "reply": reply, "audio": audio_b64}
@@ -293,6 +301,18 @@ def intro(
     audio_b64 = get_audio(reply) if persona == "aria" else None
 
     return {"status": "success", "persona": persona, "reply": reply, "audio": audio_b64}
+
+
+# ── Proactive Route ───────────────────────────────────────────────────────────
+
+@app.get("/aria/proactive")
+def aria_proactive(
+    user_id: str = Depends(_verify_token),
+    local_time: str = Depends(_get_local_time),
+):
+    from pipeline.proactive_engine import generate_proactive_signal
+    signal = generate_proactive_signal(user_id, local_time=local_time, persona="aria")
+    return {"status": "success", "signal": signal}
 
 
 # ── Oracle Route ──────────────────────────────────────────────────────────────

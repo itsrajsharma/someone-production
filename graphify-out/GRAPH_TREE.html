@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>/ — graphify tree viewer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f9f9f9;
+      color: #333;
+    }
+    h1 {
+      margin: 20px 0 0 24px;
+      font-size: 2.2rem;
+      font-weight: bold;
+      color: #1e3a56;
+    }
+    .controls {
+      margin: 20px 0 15px 24px;
+    }
+    button {
+      margin-right: 10px;
+      padding: 8px 18px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: background 0.2s ease-in-out;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    button:active {
+      background: #004085;
+    }
+    #tree-container {
+      width: calc(100vw - 48px); /* Adjust for body margin/padding */
+      height: 85vh;
+      overflow: auto;
+      border-radius: 8px;
+      background: #fff;
+      margin-left: 24px;
+      margin-right: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      border: 1px solid #ddd;
+    }
+    svg {
+      background: #fff;
+      border-radius: 8px;
+      display: block; /* Important for D3 */
+    }
+    .node circle {
+      stroke-width: 2.5px;
+    }
+    .node text { /* Base style for the <text> container */
+      font: 13px 'Segoe UI', sans-serif;
+      paint-order: stroke fill; /* Ensures text is readable over lines */
+      stroke: #fff; /* White halo */
+      stroke-width: 3px; /* Halo thickness */
+      stroke-linejoin: round;
+      stroke-opacity: 0.85; /* Halo opacity */
+    }
+    .link {
+      fill: none;
+      stroke-opacity: 0.7;
+      stroke-width: 2px;
+    }
+  </style>
+</head>
+<body>
+  <h1>/ — Knowledge Graph</h1>
+  <div class="controls">
+    <button onclick="expandAll()">Expand All</button>
+    <button onclick="collapseAll()">Collapse All</button>
+    <button onclick="resetView()">Reset View</button>
+  </div>
+  <div id="tree-container">
+    <svg id="tree-svg" width="6000" height="8000"></svg>
+  </div>
+
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script>
+    const initialJsonData = {"name":"/","total_count":3156,"children":[{"name":"db","total_count":4,"children":[{"name":"client.py","total_count":3,"children":[{"name":"db/client.py — Supabase client singleton. Import get_db() anywhere you need a da","total_count":1,"children":[]},{"name":"get_db()","total_count":1,"children":[]},{"name":"Return a Supabase client, initialising it on first call.","total_count":1,"children":[]}]},{"name":"__init__.py","total_count":1,"children":[]}]},{"name":"DEV_HISTORY.md","total_count":25,"children":[{"name":"Architecture Decision: 4 Layers","total_count":1,"children":[]},{"name":"DEV_HISTORY.md","total_count":1,"children":[]},{"name":"Overview","total_count":1,"children":[]},{"name":"Phase 1: Initial Concept — \"What if an AI actually remembered you?\"","total_count":1,"children":[]},{"name":"Phase 2: Building the Pipeline From Scratch","total_count":1,"children":[]},{"name":"Phase 3: Long-Term Memory & Snapshots","total_count":1,"children":[]},{"name":"Phase 4: The Frontend & Health Integration","total_count":1,"children":[]},{"name":"Phase 5: Oracle — The Second Persona","total_count":1,"children":[]},{"name":"Phase 6: Context Loss & Session Facts","total_count":1,"children":[]},{"name":"Problem: \"Aria forgets what I said 5 messages ago\"","total_count":1,"children":[]},{"name":"Problem: \"Aria is empathetic but sometimes I want someone brutally direct\"","total_count":1,"children":[]},{"name":"Problem: \"Aria should know about the user's health\"","total_count":1,"children":[]},{"name":"Problem: \"How does the AI know how I'm feeling right now?\"","total_count":1,"children":[]},{"name":"Problem: \"The AI doesn't know the user's patterns over time\"","total_count":1,"children":[]},{"name":"Problem: \"The AI doesn't remember what we talked about last week\"","total_count":1,"children":[]},{"name":"Problem: \"The AI forgets everything between sessions\"","total_count":1,"children":[]},{"name":"Problem: \"The app needs a real interface\"","total_count":1,"children":[]},{"name":"Problem: \"What about unfinished life stories?\"","total_count":1,"children":[]},{"name":"Problem: Aria Didn't Know Oracle Existed (and Vice Versa)","total_count":1,"children":[]},{"name":"Problem: Context Window Bloat","total_count":1,"children":[]},{"name":"Problem: Frontend Wasn't Triggering Health Context Automatically","total_count":1,"children":[]},{"name":"Problem: Open Questions Were Never Followed Up","total_count":1,"children":[]},{"name":"Someone v1 — Development History & Problem Log","total_count":1,"children":[]},{"name":"Summary of Key Evolution","total_count":1,"children":[]},{"name":"The Idea","total_count":1,"children":[]}]},{"name":"FLUTTER_SPEC.md","total_count":21,"children":[{"name":"1. Project Overview","total_count":1,"children":[]},{"name":"2. Tech Stack Recommendations","total_count":1,"children":[]},{"name":"3. Full Folder Structure","total_count":1,"children":[]},{"name":"4. Screen-by-Screen Specification","total_count":1,"children":[]},{"name":"5. Orb Animation Spec (The `OrbWidget`)","total_count":1,"children":[]},{"name":"6. API Integration Layer","total_count":1,"children":[]},{"name":"7. Design Tokens","total_count":1,"children":[]},{"name":"A. Splash Screen","total_count":1,"children":[]},{"name":"B. Auth Screen (Login / Signup)","total_count":1,"children":[]},{"name":"C. Main Screen (Dashboard + Chat)","total_count":1,"children":[]},{"name":"code:dart (ClipRRect()","total_count":1,"children":[]},{"name":"code:dart (options.headers[\"Authorization\"] = \"Bearer $accessToken\";)","total_count":1,"children":[]},{"name":"code:text (lib/)","total_count":1,"children":[]},{"name":"Colors (Hex)","total_count":1,"children":[]},{"name":"D. Push-to-Talk Voice Overlay","total_count":1,"children":[]},{"name":"Endpoints","total_count":1,"children":[]},{"name":"FLUTTER_SPEC.md","total_count":1,"children":[]},{"name":"Glassmorphism Theme (Flutter)","total_count":1,"children":[]},{"name":"Global `Dio` Interceptor","total_count":1,"children":[]},{"name":"Someone v1 — Flutter Mobile Specification","total_count":1,"children":[]},{"name":"Typography","total_count":1,"children":[]}]},{"name":"health_analyzer.py","total_count":3,"children":[{"name":"analyze_month()","total_count":1,"children":[]},{"name":"analyze_week()","total_count":1,"children":[]},{"name":"main()","total_count":1,"children":[]}]},{"name":"iso_forest.md","total_count":16,"children":[{"name":"code:block1 (score = 2^(-avg_path_length / c(n)))","total_count":1,"children":[]},{"name":"code:block2 (z = (x - mean) / std)","total_count":1,"children":[]},{"name":"code:block3 (sleep=7, stress=9, energy=2, mood=1, steps=400)","total_count":1,"children":[]},{"name":"code:block4 (day = (sleep=7, stress=9, energy=2, mood=1, steps=400))","total_count":1,"children":[]},{"name":"code:block5 (Day A: sleep=4, stress=8   ← low sleep + high stress, consis)","total_count":1,"children":[]},{"name":"Core Intuition","total_count":1,"children":[]},{"name":"How it Actually Works","total_count":1,"children":[]},{"name":"How the Tree Uses Multiple Features","total_count":1,"children":[]},{"name":"In Your health_analyzer.py Context","total_count":1,"children":[]},{"name":"iso_forest.md","total_count":1,"children":[]},{"name":"Isolation Forest (Multivariate)","total_count":1,"children":[]},{"name":"Isolation Forest — Full Breakdown","total_count":1,"children":[]},{"name":"The One Weakness to Know","total_count":1,"children":[]},{"name":"What is it?","total_count":1,"children":[]},{"name":"Why Isolation Forest specifically?","total_count":1,"children":[]},{"name":"Z-score (Univariate)","total_count":1,"children":[]}]},{"name":"main.py","total_count":18,"children":[{"name":"_get_edge_audio()","total_count":1,"children":[]},{"name":"_get_jwks_client()","total_count":1,"children":[]},{"name":"_get_local_time()","total_count":1,"children":[]},{"name":"_get_session_id()","total_count":1,"children":[]},{"name":"_verify_token()","total_count":1,"children":[]},{"name":"AuthRequest","total_count":1,"children":[]},{"name":"chat()","total_count":1,"children":[]},{"name":"ChatRequest","total_count":1,"children":[]},{"name":"Extract session_id from X-Session-ID header. Generate one if missing.","total_count":1,"children":[]},{"name":"get_audio()","total_count":1,"children":[]},{"name":"get_status()","total_count":1,"children":[]},{"name":"health_sync()","total_count":1,"children":[]},{"name":"intro()","total_count":1,"children":[]},{"name":"login()","total_count":1,"children":[]},{"name":"oracle()","total_count":1,"children":[]},{"name":"signup()","total_count":1,"children":[]},{"name":"Someone v1 — FastAPI Backend (main.py) Multi-user, Supabase-backed, JWT-authenti","total_count":1,"children":[]},{"name":"Verify the Supabase JWT (ES256 / JWKS) and return the user_id (sub claim).     U","total_count":1,"children":[]}]},{"name":"pipeline","total_count":101,"children":[{"name":"behaviour_rhythm.py","total_count":9,"children":[{"name":"_load()","total_count":1,"children":[]},{"name":"_most_common()","total_count":1,"children":[]},{"name":"_save()","total_count":1,"children":[]},{"name":"Brief hint for the scaffold about user's current context.","total_count":1,"children":[]},{"name":"get_rhythm()","total_count":1,"children":[]},{"name":"get_rhythm_hint()","total_count":1,"children":[]},{"name":"Layer 4 — Behavioural Rhythm Profile Builds a profile of when the user is most o","total_count":1,"children":[]},{"name":"Update the Behavioural Rhythm Profile from a newly generated snapshot.","total_count":1,"children":[]},{"name":"update_rhythm()","total_count":1,"children":[]}]},{"name":"dependency_resolver.py","total_count":11,"children":[{"name":"_fallback_resolve_dependencies()","total_count":1,"children":[]},{"name":"_get_mistral_embeddings()","total_count":1,"children":[]},{"name":"_pgvector_search()","total_count":1,"children":[]},{"name":"_sync_pgvector()","total_count":1,"children":[]},{"name":"_tag_overlap_bonus()","total_count":1,"children":[]},{"name":"Ensure all new turns are embedded in turn_embeddings.     Only embeds turns not","total_count":1,"children":[]},{"name":"Layer 1 — Dependency Resolver Given the current user message, finds the 3 past t","total_count":1,"children":[]},{"name":"resolve_dependencies()","total_count":1,"children":[]},{"name":"Returns list of up to `top_k` past turns most causally relevant to the current m","total_count":1,"children":[]},{"name":"Run pgvector cosine similarity search via Supabase RPC.     Requires a Postgres","total_count":1,"children":[]},{"name":"Score bonus for shared topics or entities between two turns.","total_count":1,"children":[]}]},{"name":"ebf_engine.py","total_count":13,"children":[{"name":"_analyze_ebf_llm()","total_count":1,"children":[]},{"name":"_load()","total_count":1,"children":[]},{"name":"_save()","total_count":1,"children":[]},{"name":"_update_trust()","total_count":1,"children":[]},{"name":"Compact EBF line for the scaffold.","total_count":1,"children":[]},{"name":"get_ebf()","total_count":1,"children":[]},{"name":"get_ebf_summary()","total_count":1,"children":[]},{"name":"get_respond_directive()","total_count":1,"children":[]},{"name":"Layer 3 — Emotional Behavioural Fingerprint (EBF) Builds a profile of the user's","total_count":1,"children":[]},{"name":"RESPOND line for scaffold.","total_count":1,"children":[]},{"name":"Trust grows slowly as user shares more personal things.","total_count":1,"children":[]},{"name":"Update EBF based on the incoming user message. Returns the updated EBF dict.","total_count":1,"children":[]},{"name":"update_ebf()","total_count":1,"children":[]}]},{"name":"identity_engine.py","total_count":5,"children":[{"name":"_load()","total_count":1,"children":[]},{"name":"_save()","total_count":1,"children":[]},{"name":"get_core_identity()","total_count":1,"children":[]},{"name":"Layer 5 — Core Identity Engine Generates a permanent, continuously evolving psyc","total_count":1,"children":[]},{"name":"update_identity_if_needed()","total_count":1,"children":[]}]},{"name":"open_stories.py","total_count":11,"children":[{"name":"_extract_story_title()","total_count":1,"children":[]},{"name":"_load()","total_count":1,"children":[]},{"name":"Check if the current message is semantically connected to any open story.","total_count":1,"children":[]},{"name":"check_reactivation()","total_count":1,"children":[]},{"name":"cosine_sim()","total_count":1,"children":[]},{"name":"detect_and_save_story()","total_count":1,"children":[]},{"name":"get_open_stories()","total_count":1,"children":[]},{"name":"If the user message contains an open story pattern, save it. Returns new story o","total_count":1,"children":[]},{"name":"Layer 4 — Open Stories Tracks unfinished narratives (conflicts, dreams, projects","total_count":1,"children":[]},{"name":"Mark a story as resolved.","total_count":1,"children":[]},{"name":"resolve_story()","total_count":1,"children":[]}]},{"name":"oracle_scaffold_builder.py","total_count":2,"children":[{"name":"build_oracle_scaffold()","total_count":1,"children":[]},{"name":"Oracle Scaffold Builder Compresses facts, rhythm, health, and tensions into a pr","total_count":1,"children":[]}]},{"name":"orchestrator.py","total_count":5,"children":[{"name":"_call_groq()","total_count":1,"children":[]},{"name":"Full pipeline execution. Returns Aria's text reply.     All state is scoped by u","total_count":1,"children":[]},{"name":"Pipeline Orchestrator — Master Flow Runs the full pipeline on each user message","total_count":1,"children":[]},{"name":"run_pipeline()","total_count":1,"children":[]},{"name":"Send scaffold + user message to Groq via the OpenAI-compatible API.","total_count":1,"children":[]}]},{"name":"scaffold_builder.py","total_count":7,"children":[{"name":"_compress()","total_count":1,"children":[]},{"name":"_get_current_session_turns()","total_count":1,"children":[]},{"name":"Build the full scaffold prompt for the current user message.     Returns the sca","total_count":1,"children":[]},{"name":"build_scaffold()","total_count":1,"children":[]},{"name":"Hard truncate to approximate token budget (1 token ≈ 4 chars).","total_count":1,"children":[]},{"name":"Scaffold Builder Compresses all 4 pipeline layers into a ~60-80 token prompt sca","total_count":1,"children":[]},{"name":"Walk backwards through turns and collect the continuous block     that belongs t","total_count":1,"children":[]}]},{"name":"snapshot_engine.py","total_count":8,"children":[{"name":"_generate_snapshot_llm()","total_count":1,"children":[]},{"name":"Gather all unique facts across all snapshots.","total_count":1,"children":[]},{"name":"Generate a Life Snapshot from the most recent SNAPSHOT_INTERVAL turns.","total_count":1,"children":[]},{"name":"generate_snapshot()","total_count":1,"children":[]},{"name":"get_accumulated_facts()","total_count":1,"children":[]},{"name":"get_all_snapshots()","total_count":1,"children":[]},{"name":"Layer 4 — Snapshot Engine Every 10-12 turns, generates a Life Snapshot from the","total_count":1,"children":[]},{"name":"should_generate_snapshot()","total_count":1,"children":[]}]},{"name":"tension_detector.py","total_count":14,"children":[{"name":"_insert_tension()","total_count":1,"children":[]},{"name":"_is_deflection()","total_count":1,"children":[]},{"name":"_is_resolution()","total_count":1,"children":[]},{"name":"_load()","total_count":1,"children":[]},{"name":"_update_tension_status()","total_count":1,"children":[]},{"name":"Check if user message resolves any open loops. Returns count of newly resolved l","total_count":1,"children":[]},{"name":"Detect new tensions from the current user message. Returns newly created tension","total_count":1,"children":[]},{"name":"detect_tensions()","total_count":1,"children":[]},{"name":"get_open_loops()","total_count":1,"children":[]},{"name":"get_top_open_loop()","total_count":1,"children":[]},{"name":"Layer 2 — Tension Detector Tracks open loops: unresolved questions, stated goals","total_count":1,"children":[]},{"name":"resolve_tensions()","total_count":1,"children":[]},{"name":"Return a short summary of the most recent open loop (for scaffold).","total_count":1,"children":[]},{"name":"Return all currently open tension loops.","total_count":1,"children":[]}]},{"name":"turn_store.py","total_count":15,"children":[{"name":"Clear session facts for a session (called on explicit logout/reset).","total_count":1,"children":[]},{"name":"clear_session()","total_count":1,"children":[]},{"name":"Extract and persist session-scoped facts from user message.","total_count":1,"children":[]},{"name":"Extract lightweight causal tags from a message.","total_count":1,"children":[]},{"name":"extract_session_facts()","total_count":1,"children":[]},{"name":"extract_tags()","total_count":1,"children":[]},{"name":"get_all_turns()","total_count":1,"children":[]},{"name":"get_session_facts()","total_count":1,"children":[]},{"name":"get_turn_count()","total_count":1,"children":[]},{"name":"Layer 1 — Turn Store Stores every conversation turn with lightweight causal tags","total_count":1,"children":[]},{"name":"Return all session facts for this user+session.","total_count":1,"children":[]},{"name":"Return all turns for a user+persona in chronological order.","total_count":1,"children":[]},{"name":"Return total number of turns for a user+persona.","total_count":1,"children":[]},{"name":"Save a turn with its causal tags. Returns the saved turn dict.","total_count":1,"children":[]},{"name":"save_turn()","total_count":1,"children":[]}]},{"name":"__init__.py","total_count":1,"children":[]}]},{"name":"PROJECT_ARCHITECTURE.md","total_count":14,"children":[{"name":"1. Application Layer","total_count":1,"children":[]},{"name":"2. AI Intelligence Layer","total_count":1,"children":[]},{"name":"3. Memory & Database Layer","total_count":1,"children":[]},{"name":"Layer 1: Turn Store & Semantic Tagging","total_count":1,"children":[]},{"name":"Layer 2: Emotional Behavioral Fingerprint (EBF)","total_count":1,"children":[]},{"name":"Layer 3: Tension & Micro-Narrative Detector","total_count":1,"children":[]},{"name":"Layer 4: Temporal Grounding & Rhythm Profiler","total_count":1,"children":[]},{"name":"Layer 5: Core Identity Engine (Long-Term Psychology)","total_count":1,"children":[]},{"name":"Layer 6: Mistral Vector Memory Resolver","total_count":1,"children":[]},{"name":"Layer 7: The Orchestrator & XML Scaffold Builder","total_count":1,"children":[]},{"name":"PROJECT_ARCHITECTURE.md","total_count":1,"children":[]},{"name":"Someone v1 — Project Architecture & Pipeline Overview","total_count":1,"children":[]},{"name":"🛠 Tech Stack","total_count":1,"children":[]},{"name":"🧠 The 7-Layer Cognitive Pipeline","total_count":1,"children":[]}]},{"name":"PROJECT_OVERVIEW.md","total_count":11,"children":[{"name":"`data/` — Persistent State","total_count":1,"children":[]},{"name":"`pipeline/` — The Intelligence Layer","total_count":1,"children":[]},{"name":"Architecture: The Pipeline","total_count":1,"children":[]},{"name":"code:block1 (User Message)","total_count":1,"children":[]},{"name":"File-by-File Purpose","total_count":1,"children":[]},{"name":"Key Design Decisions","total_count":1,"children":[]},{"name":"PROJECT_OVERVIEW.md","total_count":1,"children":[]},{"name":"Root Level","total_count":1,"children":[]},{"name":"Someone v1 — Project Overview","total_count":1,"children":[]},{"name":"Tech Stack","total_count":1,"children":[]},{"name":"What Is This?","total_count":1,"children":[]}]},{"name":"scripts","total_count":15,"children":[{"name":"create_auth_user.py","total_count":1,"children":[{"name":"Create the Supabase Auth user for Raj.","total_count":1,"children":[]}]},{"name":"fix_constraints.py","total_count":1,"children":[{"name":"Add missing unique constraints needed for upsert operations.","total_count":1,"children":[]}]},{"name":"inspect_jwt.py","total_count":1,"children":[{"name":"Inspect Supabase JWT algorithm to fix token verification.","total_count":1,"children":[]}]},{"name":"migrate_json_to_supabase.py","total_count":11,"children":[{"name":"chunked()","total_count":1,"children":[]},{"name":"load_json()","total_count":1,"children":[]},{"name":"migrate_ebf()","total_count":1,"children":[]},{"name":"migrate_health()","total_count":1,"children":[]},{"name":"migrate_identity()","total_count":1,"children":[]},{"name":"migrate_json_to_supabase.py One-shot migration of all legacy JSON data files int","total_count":1,"children":[]},{"name":"migrate_open_stories()","total_count":1,"children":[]},{"name":"migrate_rhythm()","total_count":1,"children":[]},{"name":"migrate_snapshots()","total_count":1,"children":[]},{"name":"migrate_tensions()","total_count":1,"children":[]},{"name":"migrate_turns()","total_count":1,"children":[]}]},{"name":"test_e2e.py","total_count":1,"children":[{"name":"End-to-end test: login → status → chat","total_count":1,"children":[]}]}]},{"name":"someone","total_count":2886,"children":[{"name":"Scripts","total_count":31,"children":[{"name":"Activate.ps1","total_count":4,"children":[{"name":"Get-PyVenvConfig()","total_count":1,"children":[]},{"name":"global:_OLD_VIRTUAL_PROMPT()","total_count":1,"children":[]},{"name":"global:deactivate()","total_count":1,"children":[]},{"name":"global:prompt()","total_count":1,"children":[]}]},{"name":"pywin32_postinstall.py","total_count":23,"children":[{"name":"# NOTE: This used to be run from inside the bdist_wininst created binary un/inst","total_count":1,"children":[]},{"name":".__init__()","total_count":1,"children":[]},{"name":".flush()","total_count":1,"children":[]},{"name":".write()","total_count":1,"children":[]},{"name":"Add (or remove) Pythonwin to context menu for python scripts.     ??? Should pr","total_count":1,"children":[]},{"name":"CopyTo()","total_count":1,"children":[]},{"name":"create_shortcut()","total_count":1,"children":[]},{"name":"fixup_dbi()","total_count":1,"children":[]},{"name":"get_root_hkey()","total_count":1,"children":[]},{"name":"get_shortcuts_folder()","total_count":1,"children":[]},{"name":"get_special_folder_path()","total_count":1,"children":[]},{"name":"get_system_dir()","total_count":1,"children":[]},{"name":"install()","total_count":1,"children":[]},{"name":"LoadSystemModule()","total_count":1,"children":[]},{"name":"main()","total_count":1,"children":[]},{"name":"RegisterCOMObjects()","total_count":1,"children":[]},{"name":"RegisterHelpFile()","total_count":1,"children":[]},{"name":"RegisterPythonwin()","total_count":1,"children":[]},{"name":"SetPyKeyVal()","total_count":1,"children":[]},{"name":"Tee","total_count":1,"children":[]},{"name":"uninstall()","total_count":1,"children":[]},{"name":"UnsetPyKeyVal()","total_count":1,"children":[]},{"name":"verify_destination()","total_count":1,"children":[]}]},{"name":"pywin32_testall.py","total_count":4,"children":[{"name":"A test runner for pywin32","total_count":1,"children":[]},{"name":"find_and_run()","total_count":1,"children":[]},{"name":"main()","total_count":1,"children":[]},{"name":"run_test()","total_count":1,"children":[]}]}]},{"name":"share","total_count":2855,"children":[{"name":"jupyter","total_count":2855,"children":[{"name":"nbextensions","total_count":2855,"children":[{"name":"pydeck","total_count":2855,"children":[{"name":"index.js","total_count":2854,"children":[{"name":"$()","total_count":1,"children":[]},{"name":"$0e()","total_count":1,"children":[]},{"name":"$g()","total_count":1,"children":[]},{"name":"$n()","total_count":1,"children":[]},{"name":"$u()","total_count":1,"children":[]},{"name":"(+2654 more)","total_count":2654,"children":[]},{"name":".defaults()","total_count":1,"children":[]},{"name":".initialize()","total_count":1,"children":[]},{"name":".model_module()","total_count":1,"children":[]},{"name":".model_module_version()","total_count":1,"children":[]},{"name":".model_name()","total_count":1,"children":[]},{"name":".onDataBufferChanged()","total_count":1,"children":[]},{"name":".onJsonChanged()","total_count":1,"children":[]},{"name":".remove()","total_count":1,"children":[]},{"name":".render()","total_count":1,"children":[]},{"name":".serializers()","total_count":1,"children":[]},{"name":".view_module()","total_count":1,"children":[]},{"name":".view_module_version()","total_count":1,"children":[]},{"name":".view_name()","total_count":1,"children":[]},{"name":"[Symbol.asyncIterator]()","total_count":1,"children":[]},{"name":"[Symbol.iterator]()","total_count":1,"children":[]},{"name":"[Symbol.toStringTag]()","total_count":1,"children":[]},{"name":"A()","total_count":1,"children":[]},{"name":"a0e()","total_count":1,"children":[]},{"name":"a1e()","total_count":1,"children":[]},{"name":"a2e()","total_count":1,"children":[]},{"name":"a5()","total_count":1,"children":[]},{"name":"a8()","total_count":1,"children":[]},{"name":"a_e()","total_count":1,"children":[]},{"name":"Aa()","total_count":1,"children":[]},{"name":"Aae()","total_count":1,"children":[]},{"name":"AB()","total_count":1,"children":[]},{"name":"Abe()","total_count":1,"children":[]},{"name":"abort()","total_count":1,"children":[]},{"name":"ac()","total_count":1,"children":[]},{"name":"accessToken()","total_count":1,"children":[]},{"name":"aCe()","total_count":1,"children":[]},{"name":"activateViewport()","total_count":1,"children":[]},{"name":"active()","total_count":1,"children":[]},{"name":"add()","total_count":1,"children":[]},{"name":"addAccessor()","total_count":1,"children":[]},{"name":"addApplicationData()","total_count":1,"children":[]},{"name":"addArrayRow()","total_count":1,"children":[]},{"name":"addBinaryBuffer()","total_count":1,"children":[]},{"name":"addBufferView()","total_count":1,"children":[]},{"name":"addChannel()","total_count":1,"children":[]},{"name":"addChild()","total_count":1,"children":[]},{"name":"addCount()","total_count":1,"children":[]},{"name":"addDefault()","total_count":1,"children":[]},{"name":"addDefaultEffect()","total_count":1,"children":[]},{"name":"addDefaultModule()","total_count":1,"children":[]},{"name":"addDefaultShaderModule()","total_count":1,"children":[]},{"name":"addDimension()","total_count":1,"children":[]},{"name":"addEntity()","total_count":1,"children":[]},{"name":"addExtension()","total_count":1,"children":[]},{"name":"addExtraData()","total_count":1,"children":[]},{"name":"addImage()","total_count":1,"children":[]},{"name":"addInstanced()","total_count":1,"children":[]},{"name":"addMaterial()","total_count":1,"children":[]},{"name":"addMesh()","total_count":1,"children":[]},{"name":"addMetersToLngLat()","total_count":1,"children":[]},{"name":"addNode()","total_count":1,"children":[]},{"name":"addObjectExtension()","total_count":1,"children":[]},{"name":"addObjectRow()","total_count":1,"children":[]},{"name":"addPointCloud()","total_count":1,"children":[]},{"name":"addRequiredExtension()","total_count":1,"children":[]},{"name":"addRow()","total_count":1,"children":[]},{"name":"addScalar()","total_count":1,"children":[]},{"name":"addScaledVector()","total_count":1,"children":[]},{"name":"addScene()","total_count":1,"children":[]},{"name":"addShaderHook()","total_count":1,"children":[]},{"name":"addStats()","total_count":1,"children":[]},{"name":"addTexture()","total_count":1,"children":[]},{"name":"addTime()","total_count":1,"children":[]},{"name":"addVectors()","total_count":1,"children":[]},{"name":"ade()","total_count":1,"children":[]},{"name":"adjustScreenSpaceError()","total_count":1,"children":[]},{"name":"ae()","total_count":1,"children":[]},{"name":"aEe()","total_count":1,"children":[]},{"name":"af()","total_count":1,"children":[]},{"name":"Ag()","total_count":1,"children":[]},{"name":"Age()","total_count":1,"children":[]},{"name":"ah()","total_count":1,"children":[]},{"name":"Ahe()","total_count":1,"children":[]},{"name":"aI()","total_count":1,"children":[]},{"name":"aie()","total_count":1,"children":[]},{"name":"Aj()","total_count":1,"children":[]},{"name":"al()","total_count":1,"children":[]},{"name":"ale()","total_count":1,"children":[]},{"name":"align()","total_count":1,"children":[]},{"name":"allocate()","total_count":1,"children":[]},{"name":"allocateResources()","total_count":1,"children":[]},{"name":"Am()","total_count":1,"children":[]},{"name":"ame()","total_count":1,"children":[]},{"name":"An()","total_count":1,"children":[]},{"name":"ane()","total_count":1,"children":[]},{"name":"angle()","total_count":1,"children":[]},{"name":"animate()","total_count":1,"children":[]},{"name":"anyChildrenVisible()","total_count":1,"children":[]},{"name":"Ao()","total_count":1,"children":[]},{"name":"aoe()","total_count":1,"children":[]},{"name":"ap()","total_count":1,"children":[]},{"name":"ape()","total_count":1,"children":[]},{"name":"applyConstraints()","total_count":1,"children":[]},{"name":"applyMatrix4()","total_count":1,"children":[]},{"name":"aq()","total_count":1,"children":[]},{"name":"aR()","total_count":1,"children":[]},{"name":"Are()","total_count":1,"children":[]},{"name":"arePropsEqual()","total_count":1,"children":[]},{"name":"ASe()","total_count":1,"children":[]},{"name":"assembleShader()","total_count":1,"children":[]},{"name":"assembleShaderPair()","total_count":1,"children":[]},{"name":"assert()","total_count":1,"children":[]},{"name":"astNodeType()","total_count":1,"children":[]},{"name":"aT()","total_count":1,"children":[]},{"name":"Ate()","total_count":1,"children":[]},{"name":"atlas()","total_count":1,"children":[]},{"name":"attach()","total_count":1,"children":[]},{"name":"attachAnimation()","total_count":1,"children":[]},{"name":"attachDevice()","total_count":1,"children":[]},{"name":"attachResource()","total_count":1,"children":[]},{"name":"attachTimeline()","total_count":1,"children":[]},{"name":"aU()","total_count":1,"children":[]},{"name":"Aue()","total_count":1,"children":[]},{"name":"autoCreateAttachmentTextures()","total_count":1,"children":[]},{"name":"Av()","total_count":1,"children":[]},{"name":"ave()","total_count":1,"children":[]},{"name":"Aw()","total_count":1,"children":[]},{"name":"awe()","total_count":1,"children":[]},{"name":"AX()","total_count":1,"children":[]},{"name":"Axe()","total_count":1,"children":[]},{"name":"aY()","total_count":1,"children":[]},{"name":"aye()","total_count":1,"children":[]},{"name":"az()","total_count":1,"children":[]},{"name":"B0()","total_count":1,"children":[]},{"name":"b1e()","total_count":1,"children":[]},{"name":"B2e()","total_count":1,"children":[]},{"name":"b5()","total_count":1,"children":[]},{"name":"b7()","total_count":1,"children":[]},{"name":"b8()","total_count":1,"children":[]},{"name":"B9()","total_count":1,"children":[]},{"name":"b_e()","total_count":1,"children":[]},{"name":"ba()","total_count":1,"children":[]},{"name":"bae()","total_count":1,"children":[]},{"name":"baseApiUrl()","total_count":1,"children":[]},{"name":"bB()","total_count":1,"children":[]},{"name":"bbe()","total_count":1,"children":[]},{"name":"bbox()","total_count":1,"children":[]},{"name":"Bc()","total_count":1,"children":[]},{"name":"bCe()","total_count":1,"children":[]},{"name":"BD()","total_count":1,"children":[]},{"name":"bde()","total_count":1,"children":[]},{"name":"be()","total_count":1,"children":[]},{"name":"bearing()","total_count":1,"children":[]},{"name":"Bee()","total_count":1,"children":[]},{"name":"begin()","total_count":1,"children":[]},{"name":"beginComputePass()","total_count":1,"children":[]},{"name":"beginOcclusionQuery()","total_count":1,"children":[]},{"name":"beginRenderPass()","total_count":1,"children":[]},{"name":"beginTimestampQuery()","total_count":1,"children":[]},{"name":"beginTransformFeedbackQuery()","total_count":1,"children":[]},{"name":"bF()","total_count":1,"children":[]},{"name":"bfe()","total_count":1,"children":[]},{"name":"Bg()","total_count":1,"children":[]},{"name":"Bge()","total_count":1,"children":[]},{"name":"bH()","total_count":1,"children":[]},{"name":"Bi()","total_count":1,"children":[]},{"name":"bie()","total_count":1,"children":[]},{"name":"bind()","total_count":1,"children":[]},{"name":"bindBeforeRender()","total_count":1,"children":[]},{"name":"bindUniformBuffers()","total_count":1,"children":[]},{"name":"Bj()","total_count":1,"children":[]},{"name":"bk()","total_count":1,"children":[]},{"name":"Bl()","total_count":1,"children":[]},{"name":"ble()","total_count":1,"children":[]},{"name":"blockEvents()","total_count":1,"children":[]},{"name":"BM()","total_count":1,"children":[]},{"name":"bme()","total_count":1,"children":[]},{"name":"Bn()","total_count":1,"children":[]},{"name":"Bne()","total_count":1,"children":[]},{"name":"BO()","total_count":1,"children":[]},{"name":"boe()","total_count":1,"children":[]},{"name":"boundingBox()","total_count":1,"children":[]},{"name":"bp()","total_count":1,"children":[]},{"name":"Bq()","total_count":1,"children":[]},{"name":"br()","total_count":1,"children":[]},{"name":"Bre()","total_count":1,"children":[]},{"name":"Bs()","total_count":1,"children":[]},{"name":"Bse()","total_count":1,"children":[]},{"name":"Bt()","total_count":1,"children":[]},{"name":"bte()","total_count":1,"children":[]},{"name":"bU()","total_count":1,"children":[]},{"name":"Bue()","total_count":1,"children":[]},{"name":"buffer()","total_count":1,"children":[]},{"name":"bv()","total_count":1,"children":[]},{"name":"bve()","total_count":1,"children":[]},{"name":"bw()","total_count":1,"children":[]},{"name":"Bwe()","total_count":1,"children":[]},{"name":"bx()","total_count":1,"children":[]},{"name":"bxe()","total_count":1,"children":[]},{"name":"by()","total_count":1,"children":[]}]},{"name":"extensionRequires.js","total_count":1,"children":[]}]}]}]}]}]},{"name":"someone_v1_interview_prep.md","total_count":30,"children":[{"name":"Candidate: Raj Sharma, Solo Builder of Someone v1","total_count":1,"children":[]},{"name":"Cheat Sheet — 5 Lines to Memorize Before the Interview","total_count":1,"children":[]},{"name":"Q1 — Walk me through the 6-layer pipeline — what does each layer actually do and why that order?","total_count":1,"children":[]},{"name":"Q10 — You say zero database dependency. Where does data actually live and how do you handle persistence across sessions?","total_count":1,"children":[]},{"name":"Q11 — How does the system distinguish between a genuine emotional shift and noise in the input signal?","total_count":1,"children":[]},{"name":"Q12 — Why Flask over FastAPI, given that FastAPI gives you async, type safety, and auto-docs out of the box?","total_count":1,"children":[]},{"name":"Q13 — Why Mistral AI specifically — what made you pick it over GPT-4o, Claude, or a local model like Ollama?","total_count":1,"children":[]},{"name":"Q14 — Why Isolation Forest for anomaly detection and not a simpler threshold rule or a different ML model?","total_count":1,"children":[]},{"name":"Q15 — Why SentenceTransformers locally instead of using OpenAI or Cohere's embedding APIs?","total_count":1,"children":[]},{"name":"Q16 — You went pipeline-first instead of just giving the LLM a long context window. What trade-offs did you consciously accept?","total_count":1,"children":[]},{"name":"Q17 — Who is the actual user of Someone v1 — what problem are they experiencing that existing apps don't solve?","total_count":1,"children":[]},{"name":"Q18 — Two personas with selective memory sharing — what's the product reason for this, not just the technical one?","total_count":1,"children":[]},{"name":"Q19 — You said 70% token cost reduction. How did you measure that and what's the baseline you're comparing against?","total_count":1,"children":[]},{"name":"Q2 — You said the LLM is \"the voice, not the brain.\" What exactly does the LLM receive, and what is it NOT responsible for?","total_count":1,"children":[]},{"name":"Q20 — What does \"physiologically-aware responses\" mean in practice — give me a concrete example of a response that changed because of health data?","total_count":1,"children":[]},{"name":"Q21 — If you were pitching this to a consumer app company, what's the one-line value proposition?","total_count":1,"children":[]},{"name":"Q22 — This is a solo project. How do you know the memory system is actually improving response quality and not just adding latency?","total_count":1,"children":[]},{"name":"Q23 — What's the biggest thing that's broken or not working well right now, and how would you fix it?","total_count":1,"children":[]},{"name":"Q24 — Emotional AI companions raise real ethical concerns — data privacy, dependency, manipulation. How did you think about these while building?","total_count":1,"children":[]},{"name":"Q25 — If you had to rebuild this in 2 weeks with a team of 3, what would you throw away and what would you keep?","total_count":1,"children":[]},{"name":"Q3 — How does selective memory sharing between the two personas work? What's the isolation mechanism?","total_count":1,"children":[]},{"name":"Q4 — You claim sub-5ms prompt injection. Walk me through the exact path from message received to prompt ready.","total_count":1,"children":[]},{"name":"Q5 — What happens when the EBF Engine and the Tension Resolver disagree on emotional state?","total_count":1,"children":[]},{"name":"Q6 — How does the Snapshot Engine decide WHEN to snapshot vs. not — what's the trigger logic?","total_count":1,"children":[]},{"name":"Q7 — Why ChromaDB over Pinecone, Weaviate, or even a simple Postgres pgvector setup?","total_count":1,"children":[]},{"name":"Q8 — SentenceTransformers + TF-IDF fallback — when exactly does TF-IDF kick in and why not just always use embeddings?","total_count":1,"children":[]},{"name":"Q9 — Isolation Forest across 7 physiological markers — which markers, how are they collected, and what does an \"anomaly\" mean in this context?","total_count":1,"children":[]},{"name":"Role: AI Builder | Interviewer: Product Team","total_count":1,"children":[]},{"name":"Someone v1 — Technical Interview Prep","total_count":1,"children":[]},{"name":"someone_v1_interview_prep.md","total_count":1,"children":[]}]},{"name":"tts.py","total_count":1,"children":[{"name":"speak()","total_count":1,"children":[]}]},{"name":"walkthrough.md","total_count":10,"children":[{"name":"code:block1 (pipeline/)","total_count":1,"children":[]},{"name":"code:block3 (CONTEXT: USER: I had a fight with Raju | ASSISTANT: That sou)","total_count":1,"children":[]},{"name":"code:powershell (cd \"d:\\all projs ml\\someone v1\")","total_count":1,"children":[]},{"name":"Files Created","total_count":1,"children":[]},{"name":"How to Run","total_count":1,"children":[]},{"name":"Someone v1 — Empathic Companion Pipeline: Walkthrough","total_count":1,"children":[]},{"name":"Test Results (Dry Run — No API Call)","total_count":1,"children":[]},{"name":"walkthrough.md","total_count":1,"children":[]},{"name":"What the Scaffold Looks Like (Example)","total_count":1,"children":[]},{"name":"What Was Built","total_count":1,"children":[]}]},{"name":"scratch.py","total_count":1,"children":[]}]};
+
+    function transformData(jsonData) {
+        // Helper function to recursively build the children structure
+        function processNode(node, parentL1StageName) {
+            let displayName = node.name;
+            // Append total_count if it exists and is not already in the name
+            if (node.total_count !== undefined) {
+                if (!/\(Total Count: \d+\)$/.test(displayName)) {
+                    displayName += ` (Total Count: ${node.total_count})`;
+                }
+            }
+
+            const newNode = { name: displayName };
+
+            if (parentL1StageName === "Root") {
+                 newNode.originalStageName = node.name;
+            } else {
+                newNode.originalStageName = parentL1StageName;
+            }
+
+            if (node.children && node.children.length > 0) {
+                const stageNameToPass = (parentL1StageName === "Root") ? node.name : parentL1StageName;
+                newNode.children = node.children.map(child => processNode(child, stageNameToPass));
+            }
+
+            return newNode;
+        }
+
+        let rootDisplayName = jsonData.name;
+        if (jsonData.total_count !== undefined && !/\(Total Count: \d+\)$/.test(rootDisplayName)) {
+            rootDisplayName += ` (Total Count: ${jsonData.total_count})`;
+        }
+
+        return {
+            name: rootDisplayName,
+            originalStageName: "Root",
+            children: (jsonData.children || []).map(child => processNode(child, "Root"))
+        };
+    }
+
+    const treeData = transformData(initialJsonData);
+
+    // Auto-populated phaseColors: every depth-1 child of the root gets
+    // a stable colour from a bigger palette so all top-level dirs are
+    // distinguishable.
+    const PALETTE = [
+      ["#3498DB","#2980B9","#AED6F1"], ["#2ECC71","#27AE60","#A9DFBF"],
+      ["#E74C3C","#C0392B","#F5B7B1"], ["#9B59B6","#8E44AD","#D7BDE2"],
+      ["#F39C12","#D68910","#FAD7A0"], ["#1ABC9C","#117864","#A2D9CE"],
+      ["#34495E","#1B2631","#ABB2B9"], ["#E67E22","#BA4A00","#F5CBA7"],
+      ["#16A085","#0E6655","#A2D9CE"], ["#D35400","#A04000","#EDBB99"],
+      ["#7F8C8D","#566573","#D5DBDB"], ["#C0392B","#7B241C","#F5B7B1"],
+      ["#2E86C1","#1B4F72","#A9CCE3"], ["#28B463","#196F3D","#A9DFBF"],
+      ["#AF7AC5","#6C3483","#D2B4DE"],
+    ];
+    const phaseColors = { "Root": { fill: "#4A4A4A", stroke: "#333333", collapsedFill: "#6C757D" },
+                          "Default": { fill: "#BDC3C7", stroke: "#95A5A6", collapsedFill: "#ECF0F1" } };
+    (initialJsonData.children || []).forEach((c, i) => {
+      const pal = PALETTE[i % PALETTE.length];
+      phaseColors[c.name] = { fill: pal[0], stroke: pal[1], collapsedFill: pal[2] };
+    });
+
+    const levelSpecificPalettes = {
+      0: { fill: "#4A4A4A", stroke: "#333333", collapsedFill: "#6C757D" },
+      2: { fill: "#6ab04c", stroke: "#508a38", collapsedFill: "#a3d391" },
+      3: { fill: "#f0932b", stroke: "#d0730f", collapsedFill: "#f6c07e" },
+      4: { fill: "#be2edd", stroke: "#a01cb3", collapsedFill: "#e08bf2" },
+      5: { fill: "#00a8ff", stroke: "#007ac1", collapsedFill: "#74d2ff" },
+      6: { fill: "#e55039", stroke: "#c23620", collapsedFill: "#f09a8d" },
+      default: { fill: "#747d8c", stroke: "#57606f", collapsedFill: "#a4b0be" }
+    };
+
+    const svgElement = d3.select("#tree-svg");
+    const initialSvgWidth = +svgElement.attr("width");
+    const initialSvgHeight = +svgElement.attr("height");
+    const margin = { top: 40, right: 120, bottom: 80, left: 450 };
+    let width = initialSvgWidth - margin.left - margin.right;
+    let height = initialSvgHeight - margin.top - margin.bottom;
+    const duration = 500;
+    let nodeCounter = 0;
+    const g = svgElement.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+    const treemap = d3.tree().nodeSize([40, 0]);
+    let rootNode = d3.hierarchy(treeData, d => d.children);
+    rootNode.x0 = 0;
+    rootNode.y0 = 0;
+
+    if (rootNode.children) {
+      rootNode.children.forEach(d_child => {
+        if (d_child.children) { collapseBranch(d_child); }
+      });
+    }
+    updateTree(rootNode);
+
+    function collapseBranch(d) { if (d.children) { d._children = d.children; d._children.forEach(collapseBranch); d.children = null; } }
+    function expandBranch(d) { if (d._children) { d.children = d._children; d._children = null; } if (d.children) { d.children.forEach(expandBranch); } }
+    window.expandAll = () => { expandBranch(rootNode); updateTree(rootNode); };
+    window.collapseAll = () => { if (rootNode.children) { rootNode.children.forEach(collapseBranch); } updateTree(rootNode); };
+    window.resetView = () => { if (rootNode.children) { rootNode.children.forEach(d_child => { if (d_child.children || d_child._children) { collapseBranch(d_child); } }); } if (rootNode._children && !rootNode.children) { rootNode.children = rootNode._children; rootNode._children = null; } updateTree(rootNode); };
+
+    function updateTree(source) {
+      const treeLayoutData = treemap(rootNode);
+      let nodes = treeLayoutData.descendants();
+      let links = treeLayoutData.descendants().slice(1);
+
+      let minX = 0;
+      let maxX = 0;
+      if (nodes.length > 0) {
+        minX = d3.min(nodes, d => d.x);
+        maxX = d3.max(nodes, d => d.x);
+      }
+
+      let neededHeight = Math.max(initialSvgHeight, maxX - minX + margin.top + margin.bottom + 100);
+      svgElement.transition().duration(duration / 2).attr("height", neededHeight);
+      g.transition().duration(duration / 2).attr("transform", `translate(${margin.left},${margin.top - minX + 40})`);
+
+      nodes.forEach(d => { d.y = d.depth * 400; }); // Adjust horizontal separation if needed
+
+      const node = g.selectAll('g.node').data(nodes, d => d.id || (d.id = ++nodeCounter));
+      const nodeEnter = node.enter().append('g')
+        .attr('class', d => "node" + (d.children || d._children ? " node--internal" : " node--leaf") + (d._children ? " _children" : ""))
+        .attr('transform', d => `translate(${source.y0},${source.x0})`)
+        .on('click', (event, d) => { if (d.children) { d._children = d.children; d.children = null; } else if (d._children) { d.children = d._children; d._children = null; } updateTree(d); })
+        .style('cursor', d => (d.children || d._children) ? 'pointer' : 'default');
+
+      nodeEnter.append('circle').attr('r', 1e-6);
+
+      nodeEnter.append('text')
+        .attr('dy', '.35em')
+        .attr('x', d => d.children || d._children ? -14 : 14)
+        .attr('text-anchor', d => d.children || d._children ? 'end' : 'start')
+        .style("fill-opacity", 1e-6)
+        .call(wrapText, 380);
+
+      const nodeUpdate = nodeEnter.merge(node);
+      nodeUpdate.transition().duration(duration)
+        .attr('transform', d => `translate(${d.y},${d.x})`)
+        .attr('class', d => "node" + (d.children ? " node--internal" : " node--leaf") + (d._children ? " node--internal _children" : ""));
+
+      nodeUpdate.select('circle').attr('r', 8.5)
+        .style('fill', d => {
+            let palette;
+            if (d.depth === 0) {
+                palette = levelSpecificPalettes[0];
+            } else if (d.depth === 1) {
+                palette = phaseColors[d.data.originalStageName] || phaseColors.Default;
+            } else {
+                palette = levelSpecificPalettes[d.depth] || levelSpecificPalettes.default;
+            }
+            if (d._children) return palette.collapsedFill;
+            if (d.children) return palette.fill;
+            return "#fff";
+        })
+        .style('stroke', d => {
+            let palette;
+            if (d.depth === 0) {
+                palette = levelSpecificPalettes[0];
+            } else if (d.depth === 1) {
+                palette = phaseColors[d.data.originalStageName] || phaseColors.Default;
+            } else {
+                palette = levelSpecificPalettes[d.depth] || levelSpecificPalettes.default;
+            }
+            return palette.stroke;
+        });
+      nodeUpdate.select('text').style("fill-opacity", 1).call(wrapText, 380);
+
+      const nodeExit = node.exit().transition().duration(duration).attr('transform', d => `translate(${source.y},${source.x})`).remove();
+      nodeExit.select('circle').attr('r', 1e-6);
+      nodeExit.select('text').style('fill-opacity', 1e-6);
+
+      const link = g.selectAll('path.link').data(links, d => d.id);
+      const linkEnter = link.enter().insert('path', "g").attr('class', 'link').attr('d', d => { const o = { x: source.x0, y: source.y0 }; return diagonal(o, o); });
+
+      linkEnter.merge(link).transition().duration(duration).attr('d', d => diagonal(d, d.parent))
+        .style('stroke', d => {
+            const sourceNode = d.parent;
+            if (!sourceNode) return phaseColors.Default.stroke;
+            const l1AncestorName = sourceNode.data.originalStageName;
+            const colorPalette = phaseColors[l1AncestorName] || phaseColors.Default;
+            return colorPalette.stroke;
+        });
+      link.exit().transition().duration(duration).attr('d', d => { const o = { x: source.x, y: source.y }; return diagonal(o, o); }).remove();
+      nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+    }
+
+    function diagonal(s, d) { return `M ${s.y} ${s.x} C ${(s.y + d.y) / 2} ${s.x}, ${(s.y + d.y) / 2} ${d.x}, ${d.y} ${d.x}`; }
+
+    function wrapText(textElements, maxWidth) {
+        const textPartColors = {
+            name: '#343a40',
+            count: '#0056b3'
+        };
+        const countRegex = /(\s\(Total Count: \d+\))$/;
+
+        textElements.each(function () {
+            const textD3 = d3.select(this);
+            const originalNodeText = textD3.datum().data.name;
+            const x = parseFloat(textD3.attr("x") || 0);
+            const initialDy = textD3.attr("dy");
+            const textAnchor = textD3.attr("text-anchor");
+            const lineHeight = 1.1;
+
+            textD3.text(null);
+
+            let namePart = originalNodeText;
+            let countPartText = "";
+
+            const countMatch = originalNodeText.match(countRegex);
+            if (countMatch && originalNodeText.endsWith(countMatch[0])) {
+                namePart = originalNodeText.substring(0, originalNodeText.length - countMatch[0].length).trim();
+                countPartText = countMatch[0].trim();
+            }
+
+            const tokens = [];
+            namePart.split(/\s+/).filter(Boolean).forEach(word => {
+                tokens.push({ text: word, type: 'name' });
+            });
+            if (countPartText) {
+                tokens.push({ text: countPartText, type: 'count' });
+            }
+
+            if (tokens.length === 0 && originalNodeText) {
+                tokens.push({ text: originalNodeText, type: 'name' });
+            }
+
+            let currentTspan = textD3.append("tspan").attr("x", x).attr("dy", initialDy);
+            if (textAnchor === "end") currentTspan.attr("text-anchor", "end");
+
+            let lineTokens = [];
+
+            for (let i = 0; i < tokens.length; i++) {
+                const tokenObj = tokens[i];
+
+                lineTokens.push(tokenObj);
+                currentTspan.text(lineTokens.map(t => t.text).join(" "));
+
+                if (currentTspan.node().getComputedTextLength() > maxWidth && lineTokens.length > 1) {
+                    lineTokens.pop();
+
+                    currentTspan.text(null);
+                    lineTokens.forEach((prevToken, idx) => {
+                        currentTspan.append("tspan")
+                            .text((idx > 0 ? " " : "") + prevToken.text)
+                            .style("fill", textPartColors[prevToken.type] || textPartColors.name)
+                            .style("font-weight", prevToken.type === 'count' ? "bold" : "normal");
+                    });
+
+                    lineTokens = [tokenObj];
+                    currentTspan = textD3.append("tspan").attr("x", x).attr("dy", lineHeight + "em");
+                    if (textAnchor === "end") currentTspan.attr("text-anchor", "end");
+                }
+            }
+
+            currentTspan.text(null);
+            lineTokens.forEach((token, idx) => {
+                currentTspan.append("tspan")
+                    .text((idx > 0 ? " " : "") + token.text)
+                    .style("fill", textPartColors[token.type] || textPartColors.name)
+                    .style("font-weight", token.type === 'count' ? "bold" : "normal");
+            });
+
+            if (textD3.selectAll("tspan > tspan").empty() && textD3.select("tspan").text().length === 0 && originalNodeText) {
+                let t = textD3.select("tspan");
+                let displayText = originalNodeText;
+                t.text(displayText).style("fill", textPartColors.name);
+                if (t.node() && t.node().getComputedTextLength() > maxWidth && displayText.length > 20) {
+                    let estimatedChars = Math.floor(maxWidth / (t.node().getComputedTextLength()/displayText.length) );
+                    displayText = displayText.substring(0, Math.max(0, estimatedChars - 3)) + "...";
+                    t.text(displayText);
+                }
+            }
+        });
+    }
+  </script>
+</body>
+</html>

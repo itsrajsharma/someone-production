@@ -1,0 +1,182 @@
+{
+  "D:\\all projs ml\\someone v1\\health_analyzer.py": {
+    "mtime": 1774293645.8566306,
+    "hash": "ace3423dfcaef40851735c3cf1d534fd"
+  },
+  "D:\\all projs ml\\someone v1\\main.py": {
+    "mtime": 1777225485.3363786,
+    "hash": "5929e7b270f21303ba81494f26769510"
+  },
+  "D:\\all projs ml\\someone v1\\scratch.py": {
+    "mtime": 1777224236.775208,
+    "hash": "b65423b941872935134a6f576baecce3"
+  },
+  "D:\\all projs ml\\someone v1\\tts.py": {
+    "mtime": 1771097287.6900072,
+    "hash": "1e9cc2667caeb81f426655785662767f"
+  },
+  "D:\\all projs ml\\someone v1\\db\\client.py": {
+    "mtime": 1777068868.8765829,
+    "hash": "93b0fb1043d30e82ea7d0e0b958a22fd"
+  },
+  "D:\\all projs ml\\someone v1\\db\\__init__.py": {
+    "mtime": 1777069412.8592303,
+    "hash": "4d7d43e49f8d5df859c8cefafd3a2bcf"
+  },
+  "D:\\all projs ml\\someone v1\\migrations\\001_initial_schema.sql": {
+    "mtime": 1777122173.900179,
+    "hash": "0f4f5263566a94a22cee75b7e3b9cd11"
+  },
+  "D:\\all projs ml\\someone v1\\migrations\\002_pgvector_functions.sql": {
+    "mtime": 1777122186.738691,
+    "hash": "d5a98e08dc7d889168519e7666407a35"
+  },
+  "D:\\all projs ml\\someone v1\\migrations\\003_resize_vector_to_1024.sql": {
+    "mtime": 1777122202.1055405,
+    "hash": "fa9988d82523fe0656297a10f377b21f"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\behaviour_rhythm.py": {
+    "mtime": 1777069062.5094383,
+    "hash": "a0a2a0b0153ca9ade83bd2dc58398339"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\dependency_resolver.py": {
+    "mtime": 1777157555.7730696,
+    "hash": "f87846bcf424b6ce3e1eaca84ada407a"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\ebf_engine.py": {
+    "mtime": 1777068952.7716649,
+    "hash": "145b7fc209048c3d98ebe2945200ff21"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\identity_engine.py": {
+    "mtime": 1777225585.8340988,
+    "hash": "f0088b9c44324b0211ad093a920e505a"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\open_stories.py": {
+    "mtime": 1777069012.721431,
+    "hash": "65f96ea16f53641c40efba733a9e0195"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\oracle_scaffold_builder.py": {
+    "mtime": 1777069195.0098865,
+    "hash": "63873231351a19ff44bd2da560a3430d"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\orchestrator.py": {
+    "mtime": 1777225866.633999,
+    "hash": "5a350789aa6d542e1087af9c69770f7d"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\scaffold_builder.py": {
+    "mtime": 1777225530.035416,
+    "hash": "a08264a944116941dcf3ba7e4b7f621a"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\snapshot_engine.py": {
+    "mtime": 1777069040.2206063,
+    "hash": "44dbaa2f5c6f650a5c22d3c81b3cd7bd"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\tension_detector.py": {
+    "mtime": 1777068985.0950391,
+    "hash": "d27b58f655502ff725e58605ac98ab41"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\turn_store.py": {
+    "mtime": 1777068920.1551173,
+    "hash": "38682a8a2c7519ad7803946f1cb147a0"
+  },
+  "D:\\all projs ml\\someone v1\\pipeline\\__init__.py": {
+    "mtime": 1773923251.6985633,
+    "hash": "f33b8a9ab8be1edb8713846b61095f50"
+  },
+  "D:\\all projs ml\\someone v1\\scripts\\create_auth_user.py": {
+    "mtime": 1777073472.0021589,
+    "hash": "5bdcd8ec5c18813ba1c481013491e5d2"
+  },
+  "D:\\all projs ml\\someone v1\\scripts\\fix_constraints.py": {
+    "mtime": 1777074511.528425,
+    "hash": "5c0d872b13c09d25cd57cb7291858afa"
+  },
+  "D:\\all projs ml\\someone v1\\scripts\\inspect_jwt.py": {
+    "mtime": 1777073600.139054,
+    "hash": "890a8aedfc8741753df1eaae3954062f"
+  },
+  "D:\\all projs ml\\someone v1\\scripts\\migrate_json_to_supabase.py": {
+    "mtime": 1777074583.1002982,
+    "hash": "aeb6c8af6d2795661fd2df44d31cd746"
+  },
+  "D:\\all projs ml\\someone v1\\scripts\\test_e2e.py": {
+    "mtime": 1777073491.4043188,
+    "hash": "c448934604ac4c92d89c12198d34323f"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\Scripts\\Activate.ps1": {
+    "mtime": 1771064958.5409312,
+    "hash": "716136809f9ded41109749951a08fa74"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\Scripts\\pywin32_postinstall.py": {
+    "mtime": 1771170981.087323,
+    "hash": "e4a35db96d1d595fa2b09b0eefaccac2"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\Scripts\\pywin32_testall.py": {
+    "mtime": 1771170981.1134968,
+    "hash": "4a68cb6a05b3e4c3d716b61f77e92f4c"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\share\\jupyter\\nbextensions\\pydeck\\extensionRequires.js": {
+    "mtime": 1771066698.1656482,
+    "hash": "917fa0380eae8e2b2da69914eebc9eac"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\share\\jupyter\\nbextensions\\pydeck\\index.js": {
+    "mtime": 1771066698.1793075,
+    "hash": "850ad91eced0ee04dfc4995a2d275b02"
+  },
+  "D:\\all projs ml\\someone v1\\DEV_HISTORY.md": {
+    "mtime": 1776608494.3331504,
+    "hash": "6f19d909c372889f53aef777e0291370"
+  },
+  "D:\\all projs ml\\someone v1\\FLUTTER_SPEC.md": {
+    "mtime": 1777232204.2332306,
+    "hash": "10443e01d9f5098db4cc764c6bb8a75a"
+  },
+  "D:\\all projs ml\\someone v1\\iso_forest.md": {
+    "mtime": 1776716054.5730655,
+    "hash": "67d825bcecce3ebd6e8eee79726834f0"
+  },
+  "D:\\all projs ml\\someone v1\\PROJECT_ARCHITECTURE.md": {
+    "mtime": 1777226243.9566023,
+    "hash": "17258218a18ed624e3b2c002a60b5199"
+  },
+  "D:\\all projs ml\\someone v1\\PROJECT_OVERVIEW.md": {
+    "mtime": 1775260644.4233327,
+    "hash": "cb1484e59378ab4e636da37d45a960cc"
+  },
+  "D:\\all projs ml\\someone v1\\render.yaml": {
+    "mtime": 1777075456.718112,
+    "hash": "0e2e5072937844b87511b13d84f4696e"
+  },
+  "D:\\all projs ml\\someone v1\\requirements.txt": {
+    "mtime": 1777122096.7761488,
+    "hash": "90afca4fd626c9b968b1ca6d96aef4cf"
+  },
+  "D:\\all projs ml\\someone v1\\someone_v1_interview_prep.md": {
+    "mtime": 1775742358.408922,
+    "hash": "056b3908183d7c5ddeeb8d903fbefb9a"
+  },
+  "D:\\all projs ml\\someone v1\\v1.html": {
+    "mtime": 1777225429.000708,
+    "hash": "c3e499a67cf68fa30df207beb22a2f20"
+  },
+  "D:\\all projs ml\\someone v1\\walkthrough.md": {
+    "mtime": 1773924072.257228,
+    "hash": "c5c0a0c66ec0aa476eaa994fca0da663"
+  },
+  "D:\\all projs ml\\someone v1\\data\\test_scaffold_output.txt": {
+    "mtime": 1774292419.497796,
+    "hash": "1ee11733611fa9f48406a7f88e3f6522"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\share\\jupyter\\kernels\\python3\\logo-32x32.png": {
+    "mtime": 1771187554.7322192,
+    "hash": "67e3abc640fab4b73348e55d0ccca2cd"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\share\\jupyter\\kernels\\python3\\logo-64x64.png": {
+    "mtime": 1771187554.7322192,
+    "hash": "c587675e9c33df06a94745d34b868fe9"
+  },
+  "D:\\all projs ml\\someone v1\\someone\\share\\jupyter\\kernels\\python3\\logo-svg.svg": {
+    "mtime": 1771187554.7335086,
+    "hash": "79ddc3d4363aebb071e76abf9f6850cb"
+  }
+}
