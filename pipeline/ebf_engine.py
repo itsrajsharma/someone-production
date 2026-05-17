@@ -75,7 +75,7 @@ Schema:
   "style": "formal, informal, or direct",
   "state": "excited, frustrated, anxious, sad, reflective, or content",
   "unmet_need": "short phrase describing what they want out of this interaction",
-  "response_preference": "instruction for the AI on how to reply"
+  "response_preference": "describes HOW Aria sounds, never WHAT she does. It is a tone, not an instruction. Never use verbs. Never suggest actions. Adjectives only. Valid examples: 'quiet and warm', 'playful and light', 'present but brief', 'soft and close', 'steady, no pressure'"
 }}
 
 User Message: "{user_message}"
