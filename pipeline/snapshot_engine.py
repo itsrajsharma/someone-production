@@ -1,6 +1,6 @@
 """
 Layer 4 — Snapshot Engine
-Every 10-12 turns, generates a Life Snapshot from the recent conversation batch.
+Every 20 turns, generates a Life Snapshot from the recent conversation batch.
 Snapshots form the long-term relationship memory.
 
 All operations are scoped by user_id + persona. No file I/O.
@@ -13,7 +13,7 @@ from db.client import get_db
 from .turn_store import get_all_turns
 from .open_stories import get_open_stories
 
-SNAPSHOT_INTERVAL = 10  # generate snapshot every N turns
+SNAPSHOT_INTERVAL = 20  # generate snapshot every N turns
 
 
 # ── Snapshot Extraction (LLM) ─────────────────────────────────────────────────
