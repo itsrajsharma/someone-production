@@ -55,9 +55,12 @@ def _analyze_relationship_llm(turns: list, open_tensions: list, current_state: d
     
     tension_str = "\n".join([f"- {t['type']}: {t['summary']}" for t in open_tensions])
     
-    prompt = f"""You are the Relationship Engine for Aria and the user.
+    prompt = f"""You are the Relationship Engine for Aria and her partner.
 Analyze the recent transcript, open tensions, and the last snapshot to update the relationship state.
 Be CONSERVATIVE. Only add signals if they are highly salient. Do not add noise.
+
+CRITICAL MAPPING:
+In the transcript below, ASSISTANT is Aria (she/her) and USER is her partner (he/him).
 
 Current State:
 - Momentum: {current_state['relationship_momentum']}

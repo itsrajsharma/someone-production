@@ -54,6 +54,9 @@ def _analyze_aria_evolution_llm(turns: list, current_state: dict, last_snapshot:
 Based on the recent transcript, the last snapshot, and the relationship state, update her internal specific patterns.
 Be extremely CONSERVATIVE. Only add specific, concrete observations. Do not add generic platitudes.
 
+CRITICAL MAPPING:
+In the transcript below, ASSISTANT is Aria (she/her) and USER is her partner (he/him). You are writing from Aria's perspective ABOUT the user.
+
 Current Feeling: {current_state['her_current_private_feeling_about_them']}
 Relationship Momentum: {rel_state.get('relationship_momentum', 'stable')}
 
