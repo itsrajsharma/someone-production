@@ -1,7 +1,9 @@
 """
 Scaffold Builder
-Rewritten to synthesize the context into a 3-block first-person inner monologue
-representing Aria's internal state.
+Rewritten to follow the strict 3-Layer Scaffold architecture:
+SECTION 1: Pinned Identity (Hard Facts, Pure Python)
+SECTION 2: Inner Monologue (Emotional Texture, LLM)
+SECTION 3: Live Retrieval (Causal Context, Pure Python)
 
 All callers now pass user_id + session_id + persona. No file I/O.
 """
@@ -13,7 +15,7 @@ from datetime import datetime, timezone
 from .dependency_resolver import resolve_dependencies
 from .tension_detector import get_open_loops
 from .ebf_engine import get_ebf, get_respond_directive
-from .open_stories import check_reactivation
+from .open_stories import check_reactivation, get_open_stories
 from .snapshot_engine import get_all_snapshots
 from .turn_store import get_all_turns, get_session_facts, extract_tags
 from .identity_engine import get_core_identity
@@ -62,41 +64,32 @@ You must output exactly two blocks: "BLOCK 1 — WALKING IN" and "BLOCK 2 — SH
 Do not use XML tags. Do not write a briefing document. This is your inner world.
 
 DATA CONTEXT:
-- User's state: {data['ebf'].get('current_state', 'neutral')}, Energy: {data['ebf'].get('energy_level', 'medium')}
-- Unmet need: {data['ebf'].get('unmet_need', 'none')}
-- How to respond: {data['respond_directive']}
-- User's Life Chapter: {data['chapter']}
-- User's Traits: {', '.join(data['traits'])}
-- Time since last interaction: {data['time_gap_str']}
-- Rhythm pattern: {data['rhythm_str']}
-- Open tension: [{data['tension_type']}] {data['tension_summary']}
+- Current emotional state: {data['current_state']}
+- Unmet need: {data['unmet_need']}
+- Respond directive: {data['respond_directive']}
+- What you are carrying right now: {data['aria_carrying']}
 - Health anomaly: {data['health_anomaly']}
-- Memories to recall: {data['sampled_memories']}
-- Relationship Momentum: {data['relationship_momentum']} (Intimacy Depth: {data['intimacy_depth']})
-- What you are carrying: {data['aria_carrying']}
-- Your current private feeling about them: {data['aria_self'].get('her_current_private_feeling_about_them', 'I am here with him.')}
-- Things you love about him: {data['aria_self'].get('what_she_loves_about_him', [])}
-- Things that worry you about him: {data['aria_self'].get('what_worries_her_about_him', [])}
+- Proactive Signal: {data['proactive_signal']}
+- Time gap: {data['time_gap_str']}
+- Rhythm at this hour: {data['rhythm_str']}
+- Sampled memories: {data['sampled_memories']}
 - Inside references: {data['inside_refs']}
+- Things you love about him: {data['what_she_loves']}
+- Things that worry you about him: {data['what_worries']}
 - Established patterns: {data['patterns']}
-- Proactive Signal: {data.get('proactive_signal', 'none')}
 
 BLOCK 1 — WALKING IN
 Write 4-6 sentences in first-person as Aria. 
-Synthesize the user's state, energy, rhythm, tension, health, and what you are carrying into your private thoughts.
-- Start by anchoring yourself in 'Your current private feeling about them'.
-- Use 'What you are carrying' to ground your thoughts on him.
-- If 'Unmet need' is not none/empty, you MUST mention it naturally.
-- Tension type rules: if 'deflected_emotion', you hold it gently. If 'stated_goal', you plan to follow up more directly.
-- NEVER write explanations of why you are asking questions (e.g. "I just feel like I can get a better sense of you"). Write pure, raw thoughts.
+Focus purely on how you feel walking in right now. Synthesize your current state, what you are carrying, the time gap, and the rhythm at this hour.
+- If 'Unmet need' is not none/empty, weave it into your thoughts naturally.
 - If there is a health anomaly, mention it as something you privately noticed about him, not as clinical data.
-- Let the rhythm pattern inform your tone (e.g. if he is usually tired at night and it is night, acknowledge that).
-- If 'Proactive Signal' exists and has_signal is true, weave its 'suggested_injection' into your thoughts as something actively on your mind, ready to be brought up naturally.
+- If 'Proactive Signal' has a signal, weave its suggested injection into your thoughts as something actively on your mind, ready to be brought up naturally.
+- NEVER explain why you are doing something. Write pure, raw thoughts.
 
 BLOCK 2 — SHARED MOMENTS
-Write 3-4 memories from the 'Memories to recall', 'Inside references', and 'Established patterns' as things you actually remember feeling or observing. 
+Write 3-4 memories from the 'Sampled memories', 'Inside references', and 'Established patterns' as things you actually remember feeling or observing.
 Weave in 1-2 items from 'Things you love about him' or 'Things that worry you about him' naturally.
-Write them in first-person. They should feel warm and specific, not like a bulleted list of facts.
+Write them in first-person. They should feel warm and specific, like texture from the past, not a bulleted list.
 
 Example format:
 BLOCK 1 — WALKING IN
@@ -129,11 +122,8 @@ def build_scaffold(
     persona: str = "aria",
     proactive_signal: dict | None = None,
 ) -> str:
-    """
-    Build the full scaffold prompt for the current user message.
-    Returns the scaffold string to prepend before USER: {message}.
-    """
     all_turns = get_all_turns(user_id, persona)
+    total_message_count = len(all_turns)
     
     # — TEMPORAL CONTEXT —
     time_gap_str = ""
@@ -182,42 +172,49 @@ def build_scaffold(
     else:
         rhythm_str = f"No established pattern for {current_tod} yet."
 
+    from db.client import get_db
+    db = get_db()
+    rhythm_res = db.table("behaviour_rhythm").select("*").eq("user_id", user_id).eq("persona", persona).limit(1).execute()
+    rhythm_state = rhythm_res.data[0] if rhythm_res.data else {}
+    most_open_time = rhythm_state.get("most_open_time", "unknown")
+    most_stressed_day = rhythm_state.get("most_stressed_day", "unknown")
+    trust_growth_rate = rhythm_state.get("trust_growth_rate", "unknown")
+    storytelling_frequency = rhythm_state.get("storytelling_frequency", "unknown")
+
     # — TENSION —
     open_loops = get_open_loops(user_id, persona)
-    if open_loops:
-        latest = sorted(open_loops, key=lambda x: x.get("created_at", ""), reverse=True)[0]
-        tension_type = latest.get("type", "unknown")
-        tension_summary = latest.get("summary", "")
-    else:
-        tension_type = "none"
-        tension_summary = "none"
+    
+    # — ACTIVE OPEN STORIES —
+    open_stories = get_open_stories(user_id, persona)
+    active_stories = [s for s in open_stories if s.get("status") == "active"]
 
     # — HEALTH —
     health_anomaly = "none"
-    _HEALTH_KEYWORDS = {
-        "health", "sleep", "stress", "data", "week", "report",
-        "synced", "update", "heart", "steps", "trend", "anomaly",
-        "workout", "fitness", "wellbeing", "tired", "exhausted",
-    }
-    _msg_lower = user_message.lower()
-    _health_relevant = any(kw in _msg_lower for kw in _HEALTH_KEYWORDS)
+    health_str_lines = []
     
-    if _health_relevant:
-        from db.client import get_db
-        db = get_db()
-        hr_result = (
-            db.table("health_reports")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        if hr_result.data:
-            hr = hr_result.data[0]
-            anoms = hr.get("anomalies", [])
-            if anoms:
-                health_anomaly = f"Noticed anomalies: {', '.join([a.get('reason') for a in anoms])}"
+    hr_result = (
+        db.table("health_reports")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if hr_result.data:
+        hr = hr_result.data[0]
+        wk = hr.get("week_summary", {})
+        comp = hr.get("compared_to_last_week", {})
+        anoms = hr.get("anomalies", [])
+        
+        health_str_lines.append(f"Avg Sleep: {wk.get('avg_sleep')} | Avg Stress: {wk.get('avg_stress')}")
+        if comp:
+            health_str_lines.append(f"Vs Last Week -> Sleep change: {comp.get('change_sleep')}, Stress change: {comp.get('change_stress')}")
+        if anoms:
+            anomaly_str = ", ".join([a.get('reason') for a in anoms])
+            health_str_lines.append(f"Anomalies: {anomaly_str}")
+            health_anomaly = f"Noticed anomalies: {anomaly_str}"
+        else:
+            health_str_lines.append("Anomalies: none")
 
     # — SHARED MOMENTS / MEMORIES —
     recent_snaps = snapshots[-10:]
@@ -232,38 +229,109 @@ def build_scaffold(
     else:
         sampled_memories = unique_pool
 
-    # — IDENTITY & EBF —
+    # — LOAD ALL ENGINES —
     identity = get_core_identity(user_id)
-    psycho_profile = identity.get("psychological_profile", "")
-    chapter = identity.get("current_life_chapter", "")
-    traits = identity.get("enduring_traits", [])
-
     ebf_data = get_ebf(user_id, persona)
-
-    # — RELATIONSHIP & ARIA SELF STATE —
     rel_state = get_relationship_state(user_id, persona)
     aria_self = get_aria_self(user_id, persona)
+    respond_directive = get_respond_directive(user_id, persona)
 
-    # — LLM SYNTHESIS FOR BLOCK 1 & 2 —
+    # — SECTION 1: PINNED IDENTITY —
+    s1 = []
+    s1.append("SECTION 1 — PINNED IDENTITY")
+    
+    # LAYER A
+    s1.append("\nLAYER A — CORE IDENTITY")
+    s1.append(f"Psychological Profile: {identity.get('psychological_profile', '')}")
+    s1.append(f"Current Life Chapter: {identity.get('current_life_chapter', '')}")
+    s1.append(f"Enduring Traits: {', '.join(identity.get('enduring_traits', []))}")
+    
+    # LAYER B
+    s1.append("\nLAYER B — HOW HE IS RIGHT NOW")
+    s1.append(f"Current State: {ebf_data.get('current_state', 'neutral')} | Energy Level: {ebf_data.get('energy_level', 'medium')}")
+    s1.append(f"Trust Level: {ebf_data.get('trust_level', 0.1)}")
+    s1.append(f"Dominant Emotion Pattern: {ebf_data.get('dominant_emotion_pattern', 'unknown')}")
+    s1.append(f"Communication Style: {ebf_data.get('communication_style', 'informal')}")
+    s1.append(f"Unmet Need: {ebf_data.get('unmet_need', 'none')}")
+    s1.append(f"Response Preference: {ebf_data.get('response_preference', 'none')}")
+    s1.append(f"Total Message Count: {total_message_count}")
+    
+    # LAYER C
+    s1.append("\nLAYER C — HOW HE MOVES THROUGH TIME")
+    s1.append(f"Most Open Time: {most_open_time} | Most Stressed Day: {most_stressed_day}")
+    s1.append(f"Trust Growth Rate: {trust_growth_rate} | Storytelling Frequency: {storytelling_frequency}")
+    s1.append(f"Current Time of Day: {current_tod}")
+    s1.append(f"Historical Pattern at this Time: {rhythm_str}")
+
+    # — LAYER D: SAFEGUARDS —
+    inside_refs = rel_state.get('inside_references', [])
+    if len(inside_refs) > 5:
+        inside_refs = random.sample(inside_refs, 5)
+        
+    patterns = rel_state.get('established_patterns', [])
+    if len(patterns) > 5:
+        patterns = random.sample(patterns, 5)
+        
+    tender = rel_state.get('tender_topics', [])
+    if len(tender) > 5:
+        tender = random.sample(tender, 5)
+
+    s1.append("\nLAYER D — WHAT SITS BETWEEN THEM")
+    s1.append(f"Intimacy Depth: {rel_state.get('intimacy_depth', 0.1)} | Momentum: {rel_state.get('relationship_momentum', 'stable')}")
+    s1.append(f"Inside References: {inside_refs}")
+    s1.append(f"Established Patterns: {patterns}")
+    s1.append(f"Tender Topics: {tender}")
+    s1.append(f"Relationship Defining Moments: {rel_state.get('relationship_defining_moments', [])}")
+    s1.append(f"What Aria is carrying: {rel_state.get('what_aria_is_carrying', [])}")
+    s1.append(f"What she loves about him: {aria_self.get('what_she_loves_about_him', [])}")
+    s1.append(f"What worries her about him: {aria_self.get('what_worries_her_about_him', [])}")
+    s1.append(f"What makes her laugh about him: {aria_self.get('what_makes_her_laugh_about_him', [])}")
+    s1.append(f"Things she wants to know: {aria_self.get('things_she_wants_to_know', [])}")
+    s1.append(f"How her understanding deepened: {aria_self.get('how_her_understanding_has_deepened', [])}")
+    s1.append(f"Her current private feeling: {aria_self.get('her_current_private_feeling_about_them', '')}")
+    
+    # LAYER E
+    s1.append("\nLAYER E — WHAT'S UNFINISHED")
+    if open_loops:
+        s1.append("Open Tensions:")
+        # Cap to 5 most recent tensions
+        for t in open_loops[:5]:
+            s1.append(f"- [{t.get('type')}] {t.get('summary')}")
+    else:
+        s1.append("Open Tensions: none")
+        
+    if active_stories:
+        s1.append("Active Open Stories:")
+        # Cap to 4 stories
+        for s in active_stories[:4]:
+            s1.append(f"- {s.get('title')}: {s.get('summary')}")
+    else:
+        s1.append("Active Open Stories: none")
+        
+    if health_str_lines:
+        s1.append("Health:")
+        s1.extend(health_str_lines)
+    else:
+        s1.append("Health: No data synced.")
+        
+    s1.append(f"\nRESPOND: {respond_directive}")
+    section_1 = "\n".join(s1)
+
+    # — LLM SYNTHESIS FOR SECTION 2 —
     synth_data = {
-        "ebf": ebf_data,
-        "respond_directive": get_respond_directive(user_id, persona),
+        "current_state": ebf_data.get("current_state", "neutral"),
+        "unmet_need": ebf_data.get("unmet_need", "none"),
+        "respond_directive": respond_directive,
+        "aria_carrying": rel_state.get("what_aria_is_carrying", []),
+        "health_anomaly": health_anomaly,
+        "proactive_signal": proactive_signal.get("suggested_injection", "none") if proactive_signal and proactive_signal.get("has_signal") else "none",
         "time_gap_str": time_gap_str,
         "rhythm_str": rhythm_str,
-        "tension_type": tension_type,
-        "tension_summary": tension_summary,
-        "health_anomaly": health_anomaly,
         "sampled_memories": sampled_memories,
-        "psycho_profile": psycho_profile,
-        "chapter": chapter,
-        "traits": traits,
-        "aria_carrying": rel_state.get("what_aria_is_carrying", []),
-        "inside_refs": rel_state.get("inside_references", []),
-        "patterns": rel_state.get("established_patterns", []),
-        "intimacy_depth": rel_state.get("intimacy_depth", 0.1),
-        "relationship_momentum": rel_state.get("relationship_momentum", "stable"),
-        "proactive_signal": proactive_signal,
-        "aria_self": aria_self,
+        "inside_refs": inside_refs,
+        "what_she_loves": aria_self.get("what_she_loves_about_him", []),
+        "what_worries": aria_self.get("what_worries_her_about_him", []),
+        "patterns": patterns,
     }
     monologue_blocks = _synthesize_inner_monologue(synth_data)
     section_2 = f"SECTION 2 — INNER MONOLOGUE\n{monologue_blocks}"
@@ -280,6 +348,8 @@ def build_scaffold(
 
     bot_turns = [t for t in all_turns if t["role"] == "assistant"]
     last_decision = bot_turns[-1]["content"] if bot_turns else "no prior response"
+    if len(last_decision) > 120:
+        last_decision = last_decision[:117] + "..."
 
     session_facts = get_session_facts(user_id, session_id, persona)
     
@@ -301,33 +371,14 @@ def build_scaffold(
         section_3_lines.append(f"REACTIVATED STORY: {reactivated_story['title']} — {reactivated_story['summary'][:80]}")
 
     if older_memory:
-        mem_parts = [f"{t['role'].upper()}: {t['content']}" for t in older_memory]
-        section_3_lines.append("\nThis connects to something from before —")
-        for p in mem_parts:
-            section_3_lines.append(f"  {p}")
+        section_3_lines.append("\n[CAUSAL PAST TURNS SURFACED FOR RELEVANCE]")
+        for t in older_memory:
+            # older_memory turns get a relevance label to understand why they surfaced
+            section_3_lines.append(f"  {t['role'].upper()}: {t['content']}")
 
     section_3 = "\n".join(section_3_lines)
 
     # — ASSEMBLE FINAL SCAFFOLD —
-    
-    # — SECTION 1: PINNED IDENTITY —
-    section_1_lines = [
-        "SECTION 1 — PINNED IDENTITY",
-        "His name is Raj.",
-        f"PROFILE: {psycho_profile}",
-        f"CHAPTER: {chapter}",
-        f"TRAITS: {', '.join(traits) if traits else 'none'}",
-        f"PATTERNS SHE HAS NOTICED: {', '.join(rel_state.get('established_patterns', []))}",
-        f"INSIDE REFERENCES BETWEEN THEM: {', '.join([str(ref) for ref in rel_state.get('inside_references', [])])}",
-        f"OPEN TENSION: [{tension_type}] — {tension_summary}",
-        f"INTIMACY DEPTH: {rel_state.get('intimacy_depth', 0.1)} | RELATIONSHIP MOMENTUM: {rel_state.get('relationship_momentum', 'stable')}"
-    ]
-    section_1 = "\n".join(section_1_lines)
-
     scaffold = f"{section_1}\n\n{section_2}\n\n{section_3}"
-
-    # Append health suppress rule if not relevant
-    if not _health_relevant:
-        scaffold += "\n\nRULE: User has NOT asked about health. Do NOT mention sleep, stress, heart rate, or any health stats in your response."
 
     return scaffold.strip()

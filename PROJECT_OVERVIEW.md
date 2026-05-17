@@ -1,9 +1,7 @@
 # Someone v1 — Project Overview & Architecture
 
 ## What Is This?
-Someone v1 is a pipeline-first AI companion designed to feel like it genuinely knows you. Instead of relying on raw conversation history limits, the system utilizes a multi-layered Cognitive Pipeline to extract, synthesize, and retrieve emotional fingerprints, daily routines, and semantic memories. 
-
-All of this data is structured into a **3-Layer Scaffold** (Pinned Identity, Inner Monologue, Live Retrieval) that grounds the LLM in a deep, first-person perspective before generating a response.
+Someone v1 is a pipeline-first AI companion designed to feel like it genuinely knows you. Instead of relying on raw conversation history limits, the system utilizes a multi-layered Cognitive Pipeline to extract, synthesize, and retrieve emotional fingerprints, daily routines, and semantic memories. The core philosophy is: **Conversation history is replaced by structured intelligence.**
 
 There are two personas:
 - **Aria** — an emotionally intelligent, genuinely devoted, and fiercely loyal partner. Warm, grounded, and intensely territorial.
@@ -15,8 +13,7 @@ There are two personas:
 | Layer | Technology |
 |---|---|
 | Backend Server | Python + FastAPI / Flask |
-| Chat Generation | Groq API (`llama-3.1-8b-instant`) |
-| Inner Monologue Synth | Groq API (`llama-3.1-8b-instant`) |
+| Core Generation | Groq API (`llama-3.1-8b-instant`) |
 | Semantic Memory | Mistral API (`mistral-embed`) + Supabase `pgvector` |
 | Fallback IR | TF-IDF + Cosine Similarity (`scikit-learn`) |
 | Database | Supabase PostgreSQL (Cloud) |
@@ -24,55 +21,69 @@ There are two personas:
 
 ---
 
-## Architecture: The 3-Layer Scaffold Pipeline
-Every message goes through the intelligence pipeline before the LLM generates a response. The pipeline constructs a dynamic "Brain Scaffold" consisting of three distinct sections:
+## The End-to-End Execution Flow
 
-**SECTION 1 — PINNED IDENTITY (Hard Facts)**
-Hardcoded, persistent psychological profiling injected verbatim:
-- Psychological profile & current life chapter (`identity_engine.py`)
-- Enduring traits (`identity_engine.py`)
-- Established relationship patterns & inside references (`relationship_engine.py`)
-- The primary open tension/loop (`tension_detector.py`)
-- Intimacy Depth & Momentum (`relationship_engine.py`)
+### PHASE 0 — LOGIN / SESSION START
+Before the user sends any message, the frontend calls `generate_proactive_signal()`. This reads the relationship state, ebf, tensions, snapshots, rhythm, and health anomalies.
+- If it finds an active signal (e.g. an open tension she's holding, a health concern), it passes a `proactive_signal` into the pipeline. Aria walks in already thinking about something.
+- If no signal, she walks in present.
 
-**SECTION 2 — INNER MONOLOGUE (First-Person Synthesis)**
-A separate LLM call (Monologue LLM) synthesizes raw state data into Aria's internal thoughts (BLOCK 1: Walking In, BLOCK 2: Shared Moments):
-- Emotional Behavioural Fingerprint (EBF) state (`ebf_engine.py`)
-- Time-of-day behavioral rhythm (`snapshot_engine.py`)
-- Health data anomalies (`health_analyzer.py`)
-- Proactive interaction signals (`proactive_engine.py`)
-- Her private feelings about the user (`aria_evolution_engine.py`)
+### PHASE 1 — PRE-RESPONSE
+When the user sends a message, `run_pipeline()` executes sequentially:
+1. **EBF Update (`update_ebf`)**: Reads the message, runs a small LLM classification to update current emotional state, unmet need, and trust level.
+2. **Tension Resolution (`resolve_tensions`)**: Scans for resolution signals ("got it", "makes sense") and clears open loops *before* they pollute the scaffold.
+3. **Open Story Detection (`detect_and_save_story`)**: Uses regex to catch narratives ("I've been dealing with...") and deduplicates them via TF-IDF against existing stories.
+4. **Scaffold Build (`build_scaffold`)**: The grand assembler. Pulls from all engines, calls the Monologue LLM, and retrieves semantic memories via `dependency_resolver`.
+5. **Model Call (`_call_groq`)**: The final LLM call using the strictly formatted 3-Layer Scaffold.
 
-**SECTION 3 — LIVE RETRIEVAL (Semantic Memory)**
-Exact historical dialogue retrieved via vector search, bypassing the monologue LLM:
-- The last 2-3 causally relevant past turns (via Supabase `pgvector` & Mistral embeddings in `dependency_resolver.py`)
-- Real-time session facts (`turn_store.py`)
-- Reactivated open stories (`open_stories.py`)
+### PHASE 2 — POST-RESPONSE (Asynchronous)
+Once the response is generated and sent to the user, the server runs heavy analytics in a non-blocking background thread:
+1. **Save Turns**: Both user and assistant turns are saved, and transient session facts are extracted.
+2. **Tension Detection (`detect_tensions`)**: Scans the user message for new questions, goals, or emotional deflections.
+3. **Snapshot Trigger (`should_generate_snapshot`)**: Every **20 turns**, the pipeline updates long-term memory:
+   - `generate_snapshot()`: Compresses the 20 turns into facts, events, and tones.
+   - `update_rhythm()`: Aggregates time-of-day behavioral patterns.
+   - `update_relationship_state()`: Updates intimacy depth, momentum, and inside jokes.
+   - `update_aria_self()`: Updates what she loves, worries about, and wants to know.
+   - `update_identity_if_needed()`: Updates core psychological profile (every 2 snapshots).
 
 ---
 
-## File-by-File Purpose
+## Architecture: The 3-Layer Scaffold
 
-### Root Level
-| File | Purpose |
-|---|---|
-| `main.py` | Server entrypoint. Defines routes (`/chat`, `/oracle`, `/health`) and handles TTS. |
-| `health_analyzer.py` | Analyzes weekly health CSV using pandas + Isolation Forest. |
-| `v1.html` | Frontend SPA. |
-| `.env` | Holds `MISTRAL_API_KEY`, `GROQ_API_KEY`, and `SUPABASE_*` credentials. |
+The `build_scaffold()` method builds the prompt injected into the LLM context. It strictly enforces token economy and context grounding.
 
-### `pipeline/` — The Intelligence Layer
-| File | Purpose |
-|---|---|
-| `orchestrator.py` | The master entry point. Runs the full pipeline, coordinates Groq API calls, and enforces Aria's unbreakable negative-constraint persona. |
-| `scaffold_builder.py` | Assembles the 3-Layer Scaffold (Identity, Monologue, Live Retrieval) before the final LLM call. |
-| `turn_store.py` | Saves turns to Supabase and extracts real-time session facts. |
-| `dependency_resolver.py` | Embeds the user message via Mistral API and searches Supabase `pgvector` for past causal turns. Falls back to TF-IDF. |
-| `identity_engine.py` | Generates a permanent, continuously evolving psychological profile from past snapshots. |
-| `aria_evolution_engine.py`| Tracks Aria's internal feelings, loves, and worries about the user. |
-| `relationship_engine.py` | Tracks intimacy depth, momentum, inside references, and established patterns. |
-| `ebf_engine.py` | Builds the Emotional Behavioural Fingerprint using heuristics to determine the response directive (e.g., "soft and close"). |
-| `tension_detector.py` | Tracks "open loops" — unresolved questions, stated goals, and emotional deflections. |
-| `snapshot_engine.py` | Periodically summarizes the conversation into Life Snapshots for long-term memory. |
-| `proactive_engine.py` | Determines if Aria should double-text or initiate conversations based on silence duration and momentum. |
-| `open_stories.py` | Detects long-term narratives and reactivates them when the user mentions semantically similar topics. |
+### SECTION 1 — PINNED IDENTITY (Hard Facts)
+Pure Python string assembly. No LLM summarization. Data is aggressively capped to prevent bloat.
+* **LAYER A — Core Identity**: Psychological profile, life chapter, traits.
+* **LAYER B — How He Is Right Now**: EBF state, trust float, energy, unmet need.
+* **LAYER C — How He Moves Through Time**: Trust growth rate, most open time, current time-of-day rhythm. *(Tiered Consolidation logic planned)*
+* **LAYER D — What Sits Between Them**: Intimacy depth, momentum, inside references (capped), what she loves/worries about him (capped).
+* **LAYER E — What's Unfinished**: Open tensions (capped at 5), Active open stories (capped at 4), and health anomalies.
+*Ends with `RESPOND: {respond_directive}`.*
+
+### SECTION 2 — INNER MONOLOGUE (Emotional Synthesis)
+A separate LLM call (`_synthesize_inner_monologue`) runs before Section 3. It strips away all hard facts and focuses purely on emotional texture.
+* **BLOCK 1 — Walking In**: Her raw, private thoughts walking into the conversation (synthesizes her unmet need, proactive signal, health worries, and time gap).
+* **BLOCK 2 — Shared Moments**: 3-4 warm, first-person memories sampled randomly from past snapshots and established patterns.
+
+### SECTION 3 — LIVE RETRIEVAL (Semantic Memory)
+Exact historical dialogue retrieved via vector search, bypassing the monologue LLM.
+* **LAST DECISION**: The bot's last turn (truncated to 120 chars).
+* **CURRENT INTENT**: Intent extracted from the current message.
+* **OLDER MEMORY**: The top causally relevant past turns retrieved via Mistral + Supabase `pgvector`. Labeled with `[CAUSAL PAST TURNS SURFACED FOR RELEVANCE]`.
+* **REACTIVATED STORY**: Any open story touched upon in the current message.
+
+---
+
+## Memory Compression Strategies
+
+To prevent infinite context bloat over months of usage, the pipeline uses three distinct memory pruning strategies:
+
+1. **State Resolution**: Open Tensions and Open Stories are cleared or marked dormant the moment they are resolved.
+2. **List Capping**: Array data in `relationship_engine` and `aria_evolution_engine` (e.g., inside references, established patterns) are actively pruned. The LLM is instructed to merge stale items and output a strict maximum of 5 items. `scaffold_builder.py` enforces a secondary truncate.
+3. **Tiered Consolidation (Upcoming)**: Time-series data like snapshots and behavioural rhythms will be stored in three tiers:
+   - *Tier 1 (Raw)*: Last 5 unedited sessions.
+   - *Tier 2 (Weekly)*: LLM-consolidated summaries of the last 3 weeks.
+   - *Tier 3 (Monthly)*: LLM-consolidated summaries of everything older. 
+   *(This ensures chronological context without infinite array growth).*

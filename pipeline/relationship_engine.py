@@ -63,6 +63,12 @@ Current State:
 - Momentum: {current_state['relationship_momentum']}
 - Intimacy Depth: {current_state['intimacy_depth']} (scale 0-1)
 
+Current Lists (You must prune these, merge stale items, and keep ONLY the 5 most important/salient items for each list):
+- inside_references: {current_state.get('inside_references', [])}
+- established_patterns: {current_state.get('established_patterns', [])}
+- tender_topics: {current_state.get('tender_topics', [])}
+- relationship_defining_moments: {current_state.get('relationship_defining_moments', [])}
+
 Last Snapshot Emotional Tone: {last_snapshot.get('emotional_tone', 'neutral')}
 
 Open Tensions:
@@ -73,23 +79,23 @@ Recent Transcript:
 
 Update rules:
 - what_aria_is_carrying: 2-3 things on her mind right now based on recent turns and tensions. Return as list of strings.
-- inside_references: Any new recurring terms of affection, shared phrases, or callbacks. Format: {{"trigger": "...", "context": "..."}}
-- established_patterns: Behaviors consistently observed (e.g., "he deflects with humor"). List of strings.
-- tender_topics: Topics that came up with negative valence or deflection. List of strings.
-- relationship_defining_moments: Moments from events that feel deeply significant. List of strings.
+- inside_references: Terms of affection, shared phrases, or callbacks. Format: {{"trigger": "...", "context": "..."}}. MAX 5.
+- established_patterns: Behaviors consistently observed (e.g., "he deflects with humor"). MAX 5.
+- tender_topics: Topics that came up with negative valence or deflection. MAX 5.
+- relationship_defining_moments: Moments from events that feel deeply significant. MAX 5.
 - intimacy_depth_delta: A float between -0.05 and +0.05 representing trust trajectory in recent turns.
-- new_momentum: "growing", "stable", "slightly distant", or "tender"
+- relationship_momentum: "growing", "stable", "slightly distant", or "tender"
 
 Output strictly raw JSON without ANY markdown formatting.
 Schema:
 {{
   "what_aria_is_carrying": ["string"],
-  "new_inside_references": [{{"trigger": "string", "context": "string"}}],
-  "new_established_patterns": ["string"],
-  "new_tender_topics": ["string"],
-  "new_defining_moments": ["string"],
+  "inside_references": [{{"trigger": "string", "context": "string"}}],
+  "established_patterns": ["string"],
+  "tender_topics": ["string"],
+  "relationship_defining_moments": ["string"],
   "intimacy_depth_delta": 0.01,
-  "new_momentum": "string"
+  "relationship_momentum": "string"
 }}"""
 
     try:
@@ -122,37 +128,18 @@ def update_relationship_state(last_snapshot: dict, user_id: str, persona: str = 
     if not analysis:
         return state
 
-    # Merge conservative updates
-    state["what_aria_is_carrying"] = analysis.get("what_aria_is_carrying", state["what_aria_is_carrying"])
-    
-    # Inside references
-    new_refs = analysis.get("new_inside_references", [])
-    if new_refs:
-        existing_triggers = {r["trigger"] for r in state["inside_references"]}
-        for r in new_refs:
-            if r["trigger"] not in existing_triggers:
-                state["inside_references"].append(r)
-                
-    # Patterns
-    new_patterns = analysis.get("new_established_patterns", [])
-    if new_patterns:
-        state["established_patterns"].extend([p for p in new_patterns if p not in state["established_patterns"]])
-        
-    # Tender topics
-    new_tender = analysis.get("new_tender_topics", [])
-    if new_tender:
-        state["tender_topics"].extend([t for t in new_tender if t not in state["tender_topics"]])
-        
-    # Defining moments
-    new_moments = analysis.get("new_defining_moments", [])
-    if new_moments:
-        state["relationship_defining_moments"].extend([m for m in new_moments if m not in state["relationship_defining_moments"]])
+    # Merge conservative updates directly (LLM handles pruning to 5)
+    state["what_aria_is_carrying"] = analysis.get("what_aria_is_carrying", state.get("what_aria_is_carrying", []))
+    state["inside_references"] = analysis.get("inside_references", state.get("inside_references", []))
+    state["established_patterns"] = analysis.get("established_patterns", state.get("established_patterns", []))
+    state["tender_topics"] = analysis.get("tender_topics", state.get("tender_topics", []))
+    state["relationship_defining_moments"] = analysis.get("relationship_defining_moments", state.get("relationship_defining_moments", []))
         
     # Depth and momentum
     delta = analysis.get("intimacy_depth_delta", 0.0)
-    state["intimacy_depth"] = max(0.0, min(1.0, state["intimacy_depth"] + delta))
+    state["intimacy_depth"] = max(0.0, min(1.0, state.get("intimacy_depth", 0.1) + delta))
     
-    momentum = analysis.get("new_momentum")
+    momentum = analysis.get("relationship_momentum")
     if momentum in ["growing", "stable", "slightly distant", "tender"]:
         state["relationship_momentum"] = momentum
 

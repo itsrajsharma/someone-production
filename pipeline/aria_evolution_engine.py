@@ -51,31 +51,39 @@ def _analyze_aria_evolution_llm(turns: list, current_state: dict, last_snapshot:
         transcript += f"{t['role'].upper()}: {t['content']}\n"
         
     prompt = f"""You are analyzing how Aria's feelings for her partner are evolving.
-Based on the recent transcript, the last snapshot, and the relationship state, identify new specific patterns.
+Based on the recent transcript, the last snapshot, and the relationship state, update her internal specific patterns.
 Be extremely CONSERVATIVE. Only add specific, concrete observations. Do not add generic platitudes.
 
 Current Feeling: {current_state['her_current_private_feeling_about_them']}
 Relationship Momentum: {rel_state.get('relationship_momentum', 'stable')}
+
+Current Lists (You must prune these, merge stale items, and keep ONLY the 5 most important/salient items for each list):
+- what_she_loves_about_him: {current_state.get('what_she_loves_about_him', [])}
+- what_worries_her_about_him: {current_state.get('what_worries_her_about_him', [])}
+- what_makes_her_laugh_about_him: {current_state.get('what_makes_her_laugh_about_him', [])}
+- things_she_wants_to_know: {current_state.get('things_she_wants_to_know', [])}
+- how_her_understanding_has_deepened: {current_state.get('how_her_understanding_has_deepened', [])}
+
 Recent Transcript:
 {transcript}
 
 Rules for updates:
-- what_she_loves_about_him: Specific positive patterns or traits he showed recently.
-- what_worries_her_about_him: Concerning patterns she noticed.
-- what_makes_her_laugh_about_him: Specific humorous exchanges or habits.
-- things_she_wants_to_know: Topics he hinted at but never fully opened up about.
-- how_her_understanding_has_deepened: New vulnerabilities or realizations about how he ticks.
-- new_private_feeling: One single sentence summarizing how she feels about them right now (first person).
+- what_she_loves_about_him: Specific positive patterns or traits he showed. MAX 5.
+- what_worries_her_about_him: Concerning patterns she noticed. MAX 5.
+- what_makes_her_laugh_about_him: Specific humorous exchanges or habits. MAX 5.
+- things_she_wants_to_know: Topics he hinted at but never fully opened up about. MAX 5.
+- how_her_understanding_has_deepened: New vulnerabilities or realizations about how he ticks. MAX 5.
+- her_current_private_feeling_about_them: One single sentence summarizing how she feels about them right now (first person).
 
 Output strictly raw JSON without ANY markdown formatting.
 Schema:
 {{
-  "new_what_she_loves": ["string"],
-  "new_what_worries_her": ["string"],
-  "new_what_makes_her_laugh": ["string"],
-  "new_things_she_wants_to_know": ["string"],
-  "new_how_understanding_deepened": ["string"],
-  "new_private_feeling": "string"
+  "what_she_loves_about_him": ["string"],
+  "what_worries_her_about_him": ["string"],
+  "what_makes_her_laugh_about_him": ["string"],
+  "things_she_wants_to_know": ["string"],
+  "how_her_understanding_has_deepened": ["string"],
+  "her_current_private_feeling_about_them": "string"
 }}"""
 
     try:
@@ -107,18 +115,14 @@ def update_aria_self(last_snapshot: dict, user_id: str, persona: str = "aria") -
     if not analysis:
         return state
 
-    def _merge(key_state, key_analysis):
-        new_items = analysis.get(key_analysis, [])
-        if new_items:
-            state[key_state].extend([i for i in new_items if i not in state[key_state]])
-            
-    _merge("what_she_loves_about_him", "new_what_she_loves")
-    _merge("what_worries_her_about_him", "new_what_worries_her")
-    _merge("what_makes_her_laugh_about_him", "new_what_makes_her_laugh")
-    _merge("things_she_wants_to_know", "new_things_she_wants_to_know")
-    _merge("how_her_understanding_has_deepened", "new_how_understanding_deepened")
+    # Overwrite with fully pruned arrays (LLM handles capping to 5)
+    state["what_she_loves_about_him"] = analysis.get("what_she_loves_about_him", state.get("what_she_loves_about_him", []))
+    state["what_worries_her_about_him"] = analysis.get("what_worries_her_about_him", state.get("what_worries_her_about_him", []))
+    state["what_makes_her_laugh_about_him"] = analysis.get("what_makes_her_laugh_about_him", state.get("what_makes_her_laugh_about_him", []))
+    state["things_she_wants_to_know"] = analysis.get("things_she_wants_to_know", state.get("things_she_wants_to_know", []))
+    state["how_her_understanding_has_deepened"] = analysis.get("how_her_understanding_has_deepened", state.get("how_her_understanding_has_deepened", []))
     
-    new_feeling = analysis.get("new_private_feeling")
+    new_feeling = analysis.get("her_current_private_feeling_about_them")
     if new_feeling:
         state["her_current_private_feeling_about_them"] = new_feeling
 
