@@ -265,10 +265,10 @@ def build_scaffold(
         "proactive_signal": proactive_signal,
         "aria_self": aria_self,
     }
-    
     monologue_blocks = _synthesize_inner_monologue(synth_data)
+    section_2 = f"SECTION 2 — INNER MONOLOGUE\n{monologue_blocks}"
 
-    # — BLOCK 3: LIVE READING —
+    # — SECTION 3: LIVE RETRIEVAL —
     intent_map = {
         "question": "seeking an answer",
         "statement": "casual conversing",
@@ -287,29 +287,44 @@ def build_scaffold(
     relevant_turns = resolve_dependencies(user_message, user_id, persona, top_k=6)
     older_memory = [t for t in relevant_turns if t not in session_turns]
 
-    block_3_lines = [
-        "BLOCK 3 — LIVE READING",
+    section_3_lines = [
+        "SECTION 3 — LIVE RETRIEVAL",
         f"LAST DECISION: {last_decision}",
         f"CURRENT INTENT: {intent}"
     ]
     
     if session_facts:
-        block_3_lines.append(f"SESSION KNOWN: {' | '.join(session_facts)}")
+        section_3_lines.append(f"SESSION KNOWN: {' | '.join(session_facts)}")
         
     reactivated_story = check_reactivation(user_message, user_id, persona)
     if reactivated_story:
-        block_3_lines.append(f"REACTIVATED STORY: {reactivated_story['title']} — {reactivated_story['summary'][:80]}")
+        section_3_lines.append(f"REACTIVATED STORY: {reactivated_story['title']} — {reactivated_story['summary'][:80]}")
 
     if older_memory:
         mem_parts = [f"{t['role'].upper()}: {t['content']}" for t in older_memory]
-        block_3_lines.append("\nThis connects to something from before —")
+        section_3_lines.append("\nThis connects to something from before —")
         for p in mem_parts:
-            block_3_lines.append(f"  {p}")
+            section_3_lines.append(f"  {p}")
 
-    block_3 = "\n".join(block_3_lines)
+    section_3 = "\n".join(section_3_lines)
 
     # — ASSEMBLE FINAL SCAFFOLD —
-    scaffold = f"{monologue_blocks}\n\n{block_3}"
+    
+    # — SECTION 1: PINNED IDENTITY —
+    section_1_lines = [
+        "SECTION 1 — PINNED IDENTITY",
+        "His name is Raj.",
+        f"PROFILE: {psycho_profile}",
+        f"CHAPTER: {chapter}",
+        f"TRAITS: {', '.join(traits) if traits else 'none'}",
+        f"PATTERNS SHE HAS NOTICED: {', '.join(rel_state.get('established_patterns', []))}",
+        f"INSIDE REFERENCES BETWEEN THEM: {', '.join([str(ref) for ref in rel_state.get('inside_references', [])])}",
+        f"OPEN TENSION: [{tension_type}] — {tension_summary}",
+        f"INTIMACY DEPTH: {rel_state.get('intimacy_depth', 0.1)} | RELATIONSHIP MOMENTUM: {rel_state.get('relationship_momentum', 'stable')}"
+    ]
+    section_1 = "\n".join(section_1_lines)
+
+    scaffold = f"{section_1}\n\n{section_2}\n\n{section_3}"
 
     # Append health suppress rule if not relevant
     if not _health_relevant:

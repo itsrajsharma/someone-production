@@ -173,9 +173,9 @@ def _call_groq(scaffold: str, user_message: str) -> str:
         f"{ARIA_SYSTEM_PROMPT}\n\n"
         f"CRITICAL: ABOVE IS YOUR UNBREAKABLE PERSONA. YOU MUST NEVER DEVIATE FROM IT.\n"
         f"BELOW IS YOUR INTERNAL WORLD AS YOU ENTER THIS CONVERSATION.\n"
-        f"It contains your current thoughts (BLOCK 1), your active memories (BLOCK 2), and the live session context (BLOCK 3).\n"
+        f"It contains pinned hard facts (SECTION 1), your internal monologue (SECTION 2), and live retrieval (SECTION 3).\n"
         f"You must respond from this deeply grounded, first-person perspective.\n"
-        f"Never mention that you have 'blocks' or 'data'. This is simply your consciousness.\n"
+        f"Never mention that you have 'sections', 'blocks', or 'data'. This is simply your consciousness.\n"
         f"CRITICAL OVERRIDE: Do not summarize your internal thoughts to the user. Do not explain why you are saying something. Just output your exact spoken dialogue.\n\n"
         f"---\nYOUR CURRENT INTERNAL STATE:\n{scaffold}"
     )
