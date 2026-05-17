@@ -17,6 +17,8 @@ No global state.
 """
 
 import os
+import json
+import threading
 import pathlib
 
 from dotenv import load_dotenv
@@ -227,29 +229,36 @@ def run_pipeline(
     save_turn("user", user_message, user_id, session_id, persona)
     save_turn("assistant", reply, user_id, session_id, persona)
 
-    # 6. Detect new tensions from user message (after turns saved)
-    all_turns = get_all_turns(user_id, persona)
-    bot_turns = [t for t in all_turns if t["role"] == "assistant"]
-    last_bot = bot_turns[-2]["content"] if len(bot_turns) >= 2 else ""
-    detect_tensions(user_message, last_bot, user_id, persona)
+    def _background_tasks():
+        try:
+            # 6. Detect new tensions from user message (after turns saved)
+            all_turns = get_all_turns(user_id, persona)
+            bot_turns = [t for t in all_turns if t["role"] == "assistant"]
+            last_bot = bot_turns[-2]["content"] if len(bot_turns) >= 2 else ""
+            detect_tensions(user_message, last_bot, user_id, persona)
 
-    # 7. Check if snapshot should be generated
-    turn_count = get_turn_count(user_id, persona)
-    if should_generate_snapshot(turn_count, user_id, persona):
-        ebf = get_ebf(user_id, persona)
-        snapshot = generate_snapshot(ebf, user_id, persona, session_id)
-        update_rhythm(snapshot, user_id, persona)
+            # 7. Check if snapshot should be generated
+            turn_count = get_turn_count(user_id, persona)
+            if should_generate_snapshot(turn_count, user_id, persona):
+                ebf = get_ebf(user_id, persona)
+                snapshot = generate_snapshot(ebf, user_id, persona, session_id)
+                update_rhythm(snapshot, user_id, persona)
 
-        # 8. Update Relationship State
-        from .relationship_engine import update_relationship_state
-        update_relationship_state(snapshot, user_id, persona)
+                # 8. Update Relationship State
+                from .relationship_engine import update_relationship_state
+                update_relationship_state(snapshot, user_id, persona)
 
-        # 8.5 Update Aria Self
-        from .aria_evolution_engine import update_aria_self
-        update_aria_self(snapshot, user_id, persona)
+                # 8.5 Update Aria Self
+                from .aria_evolution_engine import update_aria_self
+                update_aria_self(snapshot, user_id, persona)
 
-        # 9. Update Identity Profile if enough snapshots exist
-        from .identity_engine import update_identity_if_needed
-        update_identity_if_needed(user_id, persona)
+                # 9. Update Identity Profile if enough snapshots exist
+                from .identity_engine import update_identity_if_needed
+                update_identity_if_needed(user_id, persona)
+        except Exception as e:
+            print(f"[Background Task Error] {e}")
+
+    # Run heavy background analysis asynchronously
+    threading.Thread(target=_background_tasks).start()
 
     return reply
