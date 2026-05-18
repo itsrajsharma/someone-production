@@ -13,7 +13,8 @@ from db.client import get_db
 from .turn_store import get_all_turns
 from .open_stories import get_open_stories
 
-SNAPSHOT_INTERVAL = 20  # generate snapshot every N turns
+SNAPSHOT_INTERVAL = 25  # generate snapshot every N turns
+MAX_RAW_SNAPSHOTS = 5
 
 
 # ── Snapshot Extraction (LLM) ─────────────────────────────────────────────────
@@ -159,6 +160,21 @@ def get_all_snapshots(user_id: str, persona: str = "aria") -> list:
     return result.data
 
 
+def get_recent_snapshots(user_id: str, persona: str = "aria", limit: int = 5) -> list:
+    """Return the N most recent raw snapshots."""
+    db = get_db()
+    result = (
+        db.table("snapshots")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("persona", persona)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return list(reversed(result.data)) if result.data else []
+
+
 def get_accumulated_facts(user_id: str, persona: str = "aria") -> list:
     """Gather all unique facts across all snapshots."""
     all_facts = []
@@ -167,3 +183,121 @@ def get_accumulated_facts(user_id: str, persona: str = "aria") -> list:
             if fact not in all_facts:
                 all_facts.append(fact)
     return all_facts
+
+
+def get_tiered_snapshots(user_id: str, persona: str = "aria") -> dict:
+    """Return snapshots in tiered format for the scaffold."""
+    recent = get_recent_snapshots(user_id, persona, limit=MAX_RAW_SNAPSHOTS)
+    db = get_db()
+    weekly = (
+        db.table("memory_summaries")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("persona", persona)
+        .eq("summary_type", "snapshot_weekly")
+        .order("period_start", desc=True)
+        .limit(3)
+        .execute()
+    ).data or []
+    monthly = (
+        db.table("memory_summaries")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("persona", persona)
+        .eq("summary_type", "snapshot_monthly")
+        .order("period_start", desc=True)
+        .limit(3)
+        .execute()
+    ).data or []
+    return {"recent": recent, "weekly": weekly, "monthly": monthly}
+
+
+def consolidate_snapshots(user_id: str, persona: str = "aria"):
+    """Consolidate old snapshots into weekly/monthly LLM summaries."""
+    all_snaps = get_all_snapshots(user_id, persona)
+    if len(all_snaps) <= MAX_RAW_SNAPSHOTS:
+        return
+
+    overflow = all_snaps[:-MAX_RAW_SNAPSHOTS]
+    # Group by ISO week
+    from collections import defaultdict
+    weeks = defaultdict(list)
+    for s in overflow:
+        created = s.get("created_at", s.get("date", ""))
+        try:
+            dt = datetime.fromisoformat(created.replace("+00", "+00:00")) if "+" in created else datetime.fromisoformat(created)
+            week_key = dt.strftime("%Y-W%V")
+            weeks[week_key].append(s)
+        except Exception:
+            weeks["unknown"].append(s)
+
+    db = get_db()
+    for week_key, week_snaps in weeks.items():
+        if week_key == "unknown":
+            continue
+        # Check if already consolidated
+        try:
+            start_date = datetime.strptime(week_key + "-1", "%Y-W%V-%u").strftime("%Y-%m-%d")
+        except Exception:
+            continue
+        existing = (
+            db.table("memory_summaries")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("persona", persona)
+            .eq("summary_type", "snapshot_weekly")
+            .eq("period_start", start_date)
+            .execute()
+        )
+        if existing.data:
+            continue  # Already consolidated this week
+
+        summary = _consolidate_snapshots_llm(week_snaps, week_key)
+        if summary:
+            end_date = (datetime.strptime(week_key + "-1", "%Y-W%V-%u") + timedelta(days=6)).strftime("%Y-%m-%d")
+            db.table("memory_summaries").insert({
+                "user_id": user_id,
+                "persona": persona,
+                "summary_type": "snapshot_weekly",
+                "period_start": start_date,
+                "period_end": end_date,
+                "summary": summary,
+            }).execute()
+
+
+def _consolidate_snapshots_llm(snapshots: list, week_key: str) -> str:
+    """LLM summarizes a week's snapshots into a compact life paragraph."""
+    from openai import OpenAI
+    snap_text = ""
+    for s in snapshots:
+        snap_text += (
+            f"Date: {s.get('date', '?')}, Time: {s.get('time_of_day', '?')}, "
+            f"Tone: {s.get('emotional_tone', '?')}, "
+            f"Facts: {', '.join(s.get('facts_learned', []))}, "
+            f"Events: {', '.join(s.get('events', []))}\n"
+        )
+
+    prompt = f"""Summarize these conversation snapshots from week {week_key} into a 2-3 sentence paragraph about what was happening in this person's life.
+Focus on: key events, emotional patterns, facts learned about them. Be specific, not generic.
+Write as Aria reflecting on what she learned about him that week.
+
+Snapshots:
+{snap_text}
+
+Output only the summary paragraph."""
+
+    try:
+        client = OpenAI(
+            api_key=os.environ["GROQ_API_KEY"],
+            base_url="https://api.groq.com/openai/v1",
+        )
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_tokens=150,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[Snapshot Consolidation Error] {e}")
+        return ""

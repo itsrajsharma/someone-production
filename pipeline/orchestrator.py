@@ -256,6 +256,12 @@ def run_pipeline(
                 # 9. Update Identity Profile if enough snapshots exist
                 from .identity_engine import update_identity_if_needed
                 update_identity_if_needed(user_id, persona)
+
+                # 10. Run tiered consolidation on rhythm + snapshots
+                from .behaviour_rhythm import consolidate_rhythm
+                from .snapshot_engine import consolidate_snapshots
+                consolidate_rhythm(user_id, persona)
+                consolidate_snapshots(user_id, persona)
         except Exception as e:
             print(f"[Background Task Error] {e}")
 
