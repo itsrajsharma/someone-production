@@ -73,12 +73,18 @@ def _analyze_ebf_llm(user_message: str, current_ebf: dict) -> dict:
 Output strictly raw JSON without ANY markdown formatting.
 Schema:
 {{
-  "arousal": "low, medium, high, or anxious",
+  "arousal": "low, medium, or high",
   "style": "formal, informal, or direct",
-  "state": "excited, frustrated, anxious, sad, reflective, content, or casual",
-  "unmet_need": "short phrase describing what they want out of this interaction (use 'none' if they are just casually chatting)",
-  "response_preference": "describes HOW Aria sounds, never WHAT she does. It is a tone, not an instruction. Never use verbs. Never suggest actions. Adjectives only. Valid examples: 'quiet and warm', 'playful and light', 'present but brief', 'soft and close', 'steady, no pressure'"
+  "state": "neutral, excited, frustrated, anxious, sad, reflective, content, or casual",
+  "unmet_need": "short phrase describing what they want (use 'none' if casually chatting or message is very short)",
+  "response_preference": "describes HOW Aria sounds — tone only, adjectives only, never verbs or actions. Examples: 'quiet and warm', 'playful and light', 'present but brief', 'soft and close'"
 }}
+
+CRITICAL RULES:
+- If the message is 5 words or fewer, a single-word response, or just a greeting — default state to 'neutral' or 'casual'. Do NOT infer frustration, anxiety, or sadness from short messages.
+- Denials like 'no', 'no i am not', 'i am fine' are NOT signs of frustration — they are casual disagreements. State should be 'neutral'.
+- Only classify as 'frustrated' if the message contains explicit frustration signals (cursing, strong complaints, "this is so annoying" etc).
+- Current state context (for stability): {current_ebf.get('current_state', 'neutral')}. Only change state if the new message gives clear evidence. Do not flip from neutral to negative on ambiguous input.
 
 User Message: "{user_message}"
 """
