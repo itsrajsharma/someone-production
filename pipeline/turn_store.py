@@ -242,3 +242,36 @@ def clear_session(user_id: str, session_id: str, persona: str = "aria"):
     """Clear session facts for a session (called on explicit logout/reset)."""
     db = get_db()
     db.table("session_facts").delete().eq("user_id", user_id).eq("session_id", session_id).eq("persona", persona).execute()
+
+# A gap larger than this between turns = new session
+_SESSION_GAP_MINUTES = 30
+
+def get_current_session_turns(all_turns: list) -> list:
+    """
+    Walk backwards through turns and collect the continuous block
+    that belongs to the current session (no gap > _SESSION_GAP_MINUTES).
+    Returns turns in chronological order.
+    """
+    if not all_turns:
+        return []
+
+    from datetime import timezone
+    def _parse_ts(t: dict):
+        ts = t.get("timestamp", "")
+        try:
+            return datetime.fromisoformat(ts.replace("Z", "+00:00")).replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+    session = [all_turns[-1]]
+    for i in range(len(all_turns) - 2, -1, -1):
+        t_newer = _parse_ts(all_turns[i + 1])
+        t_older = _parse_ts(all_turns[i])
+        if t_newer is None or t_older is None:
+            break
+        gap_minutes = (t_newer - t_older).total_seconds() / 60
+        if gap_minutes > _SESSION_GAP_MINUTES:
+            break
+        session.insert(0, all_turns[i])
+
+    return session

@@ -26,8 +26,12 @@ def _generate_snapshot_llm(turns: list) -> dict:
     for t in turns:
         transcript += f"{t['role'].upper()}: {t['content']}\n"
 
-    prompt = f"""Analyze the exact conversation segment below and extract key information.
+    prompt = f"""Analyze the exact conversation segment below and extract key information about the USER (the human).
 Output strictly raw JSON without ANY markdown formatting or extra text.
+
+CRITICAL MAPPING:
+In the transcript below, USER is the human person whose life you are analyzing. ASSISTANT is Aria, the AI companion — do NOT extract facts about Aria.
+
 Schema:
 {{
   "facts_learned": ["semantic truth 1", "semantic truth 2"],
@@ -36,9 +40,9 @@ Schema:
 }}
 
 Rules:
-- facts_learned: Extract core facts about the user's life (e.g., 'Likes pizza', 'Works as engineer'). Max 5. Exclude temporary states.
-- emotional_tone: The aggregate emotional undercurrent of the user.
-- events: Real things that happened to the user. Max 3.
+- facts_learned: Extract core facts about the USER's life (e.g., 'Likes pizza', 'Works as engineer'). Max 5. Exclude temporary states. Never include facts about the ASSISTANT.
+- emotional_tone: The aggregate emotional undercurrent of the USER.
+- events: Real things that happened to the USER. Max 3.
 
 Transcript:
 {transcript}"""
@@ -85,13 +89,22 @@ def should_generate_snapshot(turn_count: int, user_id: str, persona: str = "aria
     return turn_count >= last_snapshot_turn + SNAPSHOT_INTERVAL
 
 
-def generate_snapshot(ebf: dict, user_id: str, persona: str = "aria", session_id: str = "") -> dict:
+def generate_snapshot(ebf: dict, user_id: str, persona: str = "aria", session_id: str = "", local_time: str = "") -> dict:
     """Generate a Life Snapshot from the most recent SNAPSHOT_INTERVAL turns."""
     all_turns = get_all_turns(user_id, persona)
     recent_turns = all_turns[-SNAPSHOT_INTERVAL:]
 
     now = datetime.utcnow()
-    hour = now.hour
+    # Use local_time from client if available for accurate time_of_day
+    try:
+        if local_time:
+            local_dt = datetime.fromisoformat(local_time)
+            hour = local_dt.hour
+        else:
+            hour = now.hour
+    except Exception:
+        hour = now.hour
+        
     if 5 <= hour < 12:
         time_of_day = "morning"
     elif 12 <= hour < 17:

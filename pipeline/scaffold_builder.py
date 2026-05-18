@@ -17,43 +17,13 @@ from .tension_detector import get_open_loops
 from .ebf_engine import get_ebf, get_respond_directive
 from .open_stories import check_reactivation, get_open_stories
 from .snapshot_engine import get_all_snapshots
-from .turn_store import get_all_turns, get_session_facts, extract_tags
+from .turn_store import get_all_turns, get_session_facts, extract_tags, get_current_session_turns
 from .identity_engine import get_core_identity
 from .relationship_engine import get_relationship_state
 from .aria_evolution_engine import get_aria_self
 
-# A gap larger than this between turns = new session
-_SESSION_GAP_MINUTES = 30
 
 
-def _get_current_session_turns(all_turns: list) -> list:
-    """
-    Walk backwards through turns and collect the continuous block
-    that belongs to the current session (no gap > _SESSION_GAP_MINUTES).
-    Returns turns in chronological order.
-    """
-    if not all_turns:
-        return []
-
-    def _parse_ts(t: dict):
-        ts = t.get("timestamp", "")
-        try:
-            return datetime.fromisoformat(ts).replace(tzinfo=timezone.utc)
-        except Exception:
-            return None
-
-    session = [all_turns[-1]]
-    for i in range(len(all_turns) - 2, -1, -1):
-        t_newer = _parse_ts(all_turns[i + 1])
-        t_older = _parse_ts(all_turns[i])
-        if t_newer is None or t_older is None:
-            break
-        gap_minutes = (t_newer - t_older).total_seconds() / 60
-        if gap_minutes > _SESSION_GAP_MINUTES:
-            break
-        session.insert(0, all_turns[i])
-
-    return session
 
 
 def _synthesize_inner_monologue(data: dict) -> str:
@@ -104,7 +74,7 @@ BLOCK 2 — SHARED MOMENTS
             base_url="https://api.groq.com/openai/v1",
         )
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
         )
@@ -153,8 +123,13 @@ def build_scaffold(
     # — RHYTHM PATTERNS —
     snapshots = get_all_snapshots(user_id, persona)
     
-    now = datetime.utcnow()
-    hour = now.hour
+    # Parse local time from client for accurate time-of-day
+    try:
+        local_dt = datetime.fromisoformat(local_time)
+        hour = local_dt.hour
+    except Exception:
+        hour = datetime.utcnow().hour
+
     if 5 <= hour < 12:
         current_tod = "morning"
     elif 12 <= hour < 17:
@@ -185,8 +160,7 @@ def build_scaffold(
     open_loops = get_open_loops(user_id, persona)
     
     # — ACTIVE OPEN STORIES —
-    open_stories = get_open_stories(user_id, persona)
-    active_stories = [s for s in open_stories if s.get("status") == "active"]
+    active_stories = get_open_stories(user_id, persona)
 
     # — HEALTH —
     health_anomaly = "none"
@@ -346,14 +320,15 @@ def build_scaffold(
     if current_tags.get("has_goal"):
         intent = "expressing a goal or desire"
 
-    bot_turns = [t for t in all_turns if t["role"] == "assistant"]
-    last_decision = bot_turns[-1]["content"] if bot_turns else "no prior response"
+    session_facts = get_session_facts(user_id, session_id, persona)
+    session_turns = get_current_session_turns(all_turns)
+
+    # LAST DECISION: scope to current session only, not all-time
+    session_bot_turns = [t for t in session_turns if t["role"] == "assistant"]
+    last_decision = session_bot_turns[-1]["content"] if session_bot_turns else "no prior response this session"
     if len(last_decision) > 120:
         last_decision = last_decision[:117] + "..."
 
-    session_facts = get_session_facts(user_id, session_id, persona)
-    
-    session_turns = _get_current_session_turns(all_turns)
     relevant_turns = resolve_dependencies(user_message, user_id, persona, top_k=6)
     older_memory = [t for t in relevant_turns if t not in session_turns]
 

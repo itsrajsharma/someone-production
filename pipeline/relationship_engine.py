@@ -48,9 +48,11 @@ def _save(state: dict, user_id: str, persona: str = "aria"):
 
 def _analyze_relationship_llm(turns: list, open_tensions: list, current_state: dict, last_snapshot: dict) -> dict:
     from openai import OpenAI
+    from .turn_store import get_current_session_turns
     
+    session_turns = get_current_session_turns(turns)
     transcript = ""
-    for t in turns[-20:]:  # Provide recent context
+    for t in session_turns[-20:]:  # Provide recent context
         transcript += f"{t['role'].upper()}: {t['content']}\n"
     
     tension_str = "\n".join([f"- {t['type']}: {t['summary']}" for t in open_tensions])

@@ -149,19 +149,20 @@ def detect_tensions(
 
 
 def resolve_tensions(user_message: str, user_id: str, persona: str = "aria") -> int:
-    """Check if user message resolves any open loops. Returns count of newly resolved loops."""
+    """Check if user message resolves any open loops. Only resolves the most recent one."""
     if not _is_resolution(user_message):
         return 0
 
     loops = _load(user_id, persona)
-    resolved_count = 0
-    now = datetime.utcnow().isoformat()
-    for loop in loops:
-        if loop["status"] == "open":
-            _update_tension_status(loop["tension_id"], user_id, now)
-            resolved_count += 1
+    open_loops = [l for l in loops if l["status"] == "open"]
+    if not open_loops:
+        return 0
 
-    return resolved_count
+    # Only resolve the most recent open tension, not all of them
+    most_recent = sorted(open_loops, key=lambda x: x.get("created_at", ""), reverse=True)[0]
+    now = datetime.utcnow().isoformat()
+    _update_tension_status(most_recent["tension_id"], user_id, now)
+    return 1
 
 
 def get_open_loops(user_id: str, persona: str = "aria") -> list:

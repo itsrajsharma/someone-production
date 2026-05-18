@@ -183,7 +183,7 @@ def _call_groq(scaffold: str, user_message: str) -> str:
     )
 
     response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
+        model="llama-3.3-70b-versatile",
         messages=[
             {"role": "system", "content": full_instructions},
             {"role": "user", "content": user_message},
@@ -210,7 +210,7 @@ def run_pipeline(
     # ── PRE-RESPONSE ─────────────────────────────────────────────────────────
 
     # 1. Update EBF with user's signal
-    ebf = update_ebf(user_message, user_id, persona)
+    ebf = update_ebf(user_message, user_id, session_id, persona)
 
     # 2. Resolve any existing open loops if user seems satisfied
     resolve_tensions(user_message, user_id, persona)
@@ -242,7 +242,7 @@ def run_pipeline(
             turn_count = get_turn_count(user_id, persona)
             if should_generate_snapshot(turn_count, user_id, persona):
                 ebf = get_ebf(user_id, persona)
-                snapshot = generate_snapshot(ebf, user_id, persona, session_id)
+                snapshot = generate_snapshot(ebf, user_id, persona, session_id, local_time)
                 update_rhythm(snapshot, user_id, persona)
 
                 # 8. Update Relationship State

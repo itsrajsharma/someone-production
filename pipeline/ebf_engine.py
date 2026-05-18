@@ -20,6 +20,7 @@ _DEFAULT_EBF = {
     "session_message_count": 0,
     "total_message_count": 0,
     "energy_level": "medium",
+    "current_session_id": "",
 }
 
 
@@ -56,6 +57,7 @@ def _save(ebf: dict, user_id: str, persona: str = "aria"):
         "session_message_count": ebf.get("session_message_count", 0),
         "total_message_count": ebf.get("total_message_count", 0),
         "energy_level": ebf.get("energy_level", "medium"),
+        "current_session_id": ebf.get("current_session_id", ""),
         "last_updated": datetime.utcnow().isoformat(),
     }
     db.table("ebf").upsert(row, on_conflict="user_id,persona").execute()
@@ -127,12 +129,21 @@ def _update_trust(ebf: dict, text: str) -> float:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def update_ebf(user_message: str, user_id: str, persona: str = "aria") -> dict:
+def update_ebf(user_message: str, user_id: str, session_id: str = "", persona: str = "aria") -> dict:
     """Update EBF based on the incoming user message. Returns the updated EBF dict."""
     ebf = _load(user_id, persona)
 
     llm_ebf = _analyze_ebf_llm(user_message, ebf)
     trust = _update_trust(ebf, user_message)
+
+    # Reset session counter and volatile state if this is a new session
+    stored_session = ebf.get("current_session_id", "")
+    if session_id and session_id != stored_session:
+        ebf["session_message_count"] = 0
+        ebf["current_session_id"] = session_id
+        # Clear volatile per-session state so stale emotions don't leak
+        ebf["unmet_need"] = ""
+        ebf["current_state"] = "neutral"
 
     ebf["energy_level"] = llm_ebf["arousal"]
     ebf["communication_style"] = llm_ebf["style"]
@@ -142,8 +153,8 @@ def update_ebf(user_message: str, user_id: str, persona: str = "aria") -> dict:
     ebf["session_message_count"] = ebf.get("session_message_count", 0) + 1
     ebf["total_message_count"] = ebf.get("total_message_count", 0) + 1
 
-    if llm_ebf["unmet_need"]:
-        ebf["unmet_need"] = llm_ebf["unmet_need"]
+    # Always take the LLM's current assessment — clear stale needs
+    ebf["unmet_need"] = llm_ebf.get("unmet_need", "")
 
     if ebf["total_message_count"] >= 5:
         ebf["dominant_emotion_pattern"] = (

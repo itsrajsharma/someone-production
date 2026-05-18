@@ -45,9 +45,11 @@ def _save(state: dict, user_id: str, persona: str = "aria"):
 
 def _analyze_aria_evolution_llm(turns: list, current_state: dict, last_snapshot: dict, rel_state: dict) -> dict:
     from openai import OpenAI
+    from .turn_store import get_current_session_turns
     
+    session_turns = get_current_session_turns(turns)
     transcript = ""
-    for t in turns[-20:]:
+    for t in session_turns[-20:]:
         transcript += f"{t['role'].upper()}: {t['content']}\n"
         
     prompt = f"""You are analyzing how Aria's feelings for her partner are evolving.
