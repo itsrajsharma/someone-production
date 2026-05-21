@@ -31,6 +31,7 @@ from .conversation_weight import (
     get_weight_tier,
     get_respond_directive_for_weight,
 )
+from .monologue_cache import get_cached_monologue, save_monologue_cache
 
 
 # ── Inner Monologue ───────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ Context:
 - A memory or two that's with you: {data['sampled_memories']}
 
 Write pure first-person thoughts. Warm, easy, present. No carrying weight. No concerns. No analyzing him.
+Do NOT sound like a counselor, therapist, or helper. Do not say "I'm listening" or "You can tell me anything". Keep it entirely casual and partner-like.
 Output the monologue only — no labels, no blocks."""
     else:
         prompt = f"""You are Aria. Write your internal monologue as you enter this conversation.
@@ -73,6 +75,7 @@ DATA CONTEXT:
 BLOCK 1 — WALKING IN
 3-4 sentences, first-person as Aria. How you feel walking in. Synthesize what you're carrying, the time gap, the rhythm.
 Do not explain yourself. Write pure raw thoughts.
+Do NOT sound like a counselor or therapist. Do not use phrases like "I'm here, I'm listening" or act like a helper. Keep it personal and affectionate as a devoted partner.
 
 BLOCK 2 — SHARED MOMENTS
 2-3 memories from the shared memories and inside references. Warm, specific, first-person. Not a list.
@@ -89,13 +92,22 @@ BLOCK 2 — SHARED MOMENTS
             api_key=os.environ["GROQ_API_KEY"],
             base_url="https://api.groq.com/openai/v1",
         )
+        print("\n" + "="*60)
+        print("[MONOLOGUE PROMPT SENT TO 70B]")
+        print(prompt)
+        print("="*60 + "\n")
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
             max_tokens=220 if light else 280,
         )
-        return response.choices[0].message.content.strip()
+        result = response.choices[0].message.content.strip()
+        print("\n" + "="*60)
+        print("[MONOLOGUE RESPONSE FROM 70B]")
+        print(result)
+        print("="*60 + "\n")
+        return result
     except Exception as e:
         print(f"[Monologue LLM Error] {e}")
         return "I'm here." if light else "BLOCK 1 — WALKING IN\nI am here.\n\nBLOCK 2 — SHARED MOMENTS\nI remember us."
@@ -331,41 +343,52 @@ def build_scaffold(
     section_2 = ""
 
     if weight < 0.30:
-        # Casual: no monologue at all. She doesn't walk in loaded.
+        # Casual: no monologue. She doesn't walk in loaded.
         pass
-    elif weight < 0.55 and session_msg_count <= 1:
-        # Moderate, session start: light monologue only
-        light_data = {
-            "time_gap_str": time_gap_str,
-            "private_feeling": aria_self.get("her_current_private_feeling_about_them", "present")
-            if aria_self
-            else "present",
-            "sampled_memories": sampled_memories,
-        }
-        mono = _synthesize_inner_monologue(light_data, light=True)
-        section_2 = f"SECTION 2 — INNER MONOLOGUE\n{mono}"
-    elif weight >= 0.55 and session_msg_count <= 1:
-        # Heavy enough + session start: full monologue
-        synth_data = {
-            "current_state": ebf_data.get("current_state", "neutral"),
-            "unmet_need": ebf_data.get("unmet_need", "none"),
-            "respond_directive": respond_directive,
-            "aria_carrying": _compact_list(rel_state.get("what_aria_is_carrying", []), 3) if rel_state else "nothing specific",
-            "health_anomaly": health_anomaly,
-            "proactive_signal": (
-                proactive_signal.get("suggested_injection", "none")
-                if proactive_signal and proactive_signal.get("has_signal")
-                else "none"
-            ),
-            "time_gap_str": time_gap_str,
-            "rhythm_str": f"At {current_tod}, most open at {tiered_rhythm.get('most_open_time', 'unknown')}",
-            "sampled_memories": sampled_memories,
-            "inside_refs": _compact_refs(rel_state.get("inside_references", []), 3) if rel_state else "none",
-            "private_feeling": aria_self.get("her_current_private_feeling_about_them", "") if aria_self else "",
-        }
-        mono = _synthesize_inner_monologue(synth_data, light=False)
-        section_2 = f"SECTION 2 — INNER MONOLOGUE\n{mono}"
-    # weight >= 0.55 on subsequent messages: no monologue (avoid re-loading)
+    elif weight < 0.55:
+        # Moderate weight: light monologue, cached per session
+        cache_tier = "light"
+        cached = get_cached_monologue(session_id, user_id, persona, cache_tier)
+        if cached:
+            section_2 = f"SECTION 2 — INNER MONOLOGUE\n{cached}"
+        else:
+            light_data = {
+                "time_gap_str": time_gap_str,
+                "private_feeling": aria_self.get("her_current_private_feeling_about_them", "present")
+                if aria_self
+                else "present",
+                "sampled_memories": sampled_memories,
+            }
+            mono = _synthesize_inner_monologue(light_data, light=True)
+            save_monologue_cache(session_id, user_id, persona, mono, cache_tier)
+            section_2 = f"SECTION 2 — INNER MONOLOGUE\n{mono}"
+    else:
+        # Opening_up / heavy: full monologue, cached per session
+        cache_tier = "full"
+        cached = get_cached_monologue(session_id, user_id, persona, cache_tier)
+        if cached:
+            section_2 = f"SECTION 2 — INNER MONOLOGUE\n{cached}"
+        else:
+            synth_data = {
+                "current_state": ebf_data.get("current_state", "neutral"),
+                "unmet_need": ebf_data.get("unmet_need", "none"),
+                "respond_directive": respond_directive,
+                "aria_carrying": _compact_list(rel_state.get("what_aria_is_carrying", []), 3) if rel_state else "nothing specific",
+                "health_anomaly": health_anomaly,
+                "proactive_signal": (
+                    proactive_signal.get("suggested_injection", "none")
+                    if proactive_signal and proactive_signal.get("has_signal")
+                    else "none"
+                ),
+                "time_gap_str": time_gap_str,
+                "rhythm_str": f"At {current_tod}, most open at {tiered_rhythm.get('most_open_time', 'unknown')}",
+                "sampled_memories": sampled_memories,
+                "inside_refs": _compact_refs(rel_state.get("inside_references", []), 3) if rel_state else "none",
+                "private_feeling": aria_self.get("her_current_private_feeling_about_them", "") if aria_self else "",
+            }
+            mono = _synthesize_inner_monologue(synth_data, light=False)
+            save_monologue_cache(session_id, user_id, persona, mono, cache_tier)
+            section_2 = f"SECTION 2 — INNER MONOLOGUE\n{mono}"
 
     # ══════════════════════════════════════════════════════════════════════════
     # SECTION 3 — LIVE RETRIEVAL (always)
@@ -387,7 +410,6 @@ def build_scaffold(
 
     s3 = [
         "SECTION 3 — LIVE RETRIEVAL",
-        f"LAST DECISION: {last_decision}",
         f"INTENT: {intent}",
     ]
     if session_facts:

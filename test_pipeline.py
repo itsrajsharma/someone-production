@@ -6,7 +6,7 @@ session_id = str(uuid.uuid4())
 
 messages = [
     "hey",
-    "tired",
+    "I feel so lost and scared right now",
     "my colleague Priya helped me today, she's really smart",
     "I finally finished that thing",
     "nothing, just a boring day",

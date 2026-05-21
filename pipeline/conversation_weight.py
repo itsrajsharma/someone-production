@@ -54,6 +54,51 @@ _EXPLICIT_HEAVY = [
 
 # ── Core Computation ──────────────────────────────────────────────────────────
 
+def classify_message_weight_llm(
+    message: str,
+    last_bot_message: str = "",
+) -> str:
+    """
+    Uses llama-3.1-8b-instant to classify the emotional/contextual weight of a message.
+    Returns: 'casual', 'moderate', 'opening_up', or 'heavy'.
+    """
+    import os
+    from openai import OpenAI
+
+    prompt = f"""Classify this chat message's emotional weight. Reply with ONE word only: casual, moderate, opening_up, or heavy.
+
+casual = greetings, banter, teasing, logistics ("hey", "don't lie", "what should we watch", "haha", "ok cool")
+moderate = routine updates, mild feelings ("just got to office", "bit tired", "had a busy day")
+opening_up = vulnerability, negations revealing distress ("actually no I'm not really", "not fine", "struggling lately")
+heavy = crisis, fear, deep pain ("I'm scared", "I feel lost", "we had a big fight")
+
+"anyway" + lightweight topic = casual. Short playful denials = casual. Negations like "not really"/"not fine" = opening_up.
+
+Context: "{last_bot_message}"
+Message: "{message}"
+Weight:"""
+
+    try:
+        client = OpenAI(
+            api_key=os.environ["GROQ_API_KEY"],
+            base_url="https://api.groq.com/openai/v1",
+        )
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=10,
+        )
+        result = response.choices[0].message.content.strip().lower()
+        for category in ["casual", "moderate", "opening_up", "heavy"]:
+            if category in result:
+                return category
+        return "casual"
+    except Exception as e:
+        print(f"[Weight LLM Classification Error] {e}")
+        return "fallback"
+
+
 def compute_message_weight(
     message: str,
     ebf_data: dict,
@@ -62,72 +107,78 @@ def compute_message_weight(
 ) -> float:
     """
     Returns a float 0.0–1.0 representing conversation weight.
-
-    0.0–0.30  → casual / light
-    0.30–0.55 → moderate / present
-    0.55–0.75 → opening up
-    0.75–1.0  → heavy / distressed
+    First attempts to classify using llama-3.1-8b-instant.
+    Falls back to python heuristics if the LLM call fails.
     """
+    # 1. Attempt LLM classification
+    category = classify_message_weight_llm(message, last_bot_message)
+    
+    if category != "fallback":
+        mapping = {
+            "casual": 0.15,
+            "moderate": 0.40,
+            "opening_up": 0.65,
+            "heavy": 0.85
+        }
+        return mapping.get(category, 0.15)
+
+    # 2. Fallback to Python heuristics if LLM fails
     msg = message.strip().lower()
     words = msg.split()
     word_count = len(words)
     weight = 0.0
 
-    # ── Hard floor: very short messages are always light ──
-    # "hi", "ok", "yes", "no", "haha", single emoji = floor at 0.05
+    # Hard floor: very short messages are always light
     if word_count <= 2 and not any(kw in msg for kw in _DISCLOSURE_KEYWORDS + _TOPIC_KEYWORDS):
         return 0.05
 
-    # ── Greeting pattern: floor at 0.08 ──
+    # Greeting pattern: floor at 0.08
     if _GREETING_PATTERNS.match(msg) and word_count <= 5:
         return 0.08
 
-    # ── Explicit heavy signals: instant high weight ──
+    # Explicit heavy signals: instant high weight
     if any(kw in msg for kw in _EXPLICIT_HEAVY):
         return 0.85
 
-    # ── Deflection: moderate weight (something IS there but suppressed) ──
+    # Deflection: moderate weight
     if any(kw in msg for kw in _DEFLECTION_SIGNALS):
         weight = max(weight, 0.45)
 
-    # ── Signal 1: Message length (longer = more substance) ──
-    # Cap contribution at 0.25
+    # Signal 1: Message length
     length_score = min(word_count / 40.0, 0.25)
     weight += length_score
 
-    # ── Signal 2: Personal disclosure keywords ──
+    # Signal 2: Personal disclosure keywords
     disclosure_hits = sum(1 for kw in _DISCLOSURE_KEYWORDS if kw in msg)
     weight += min(disclosure_hits * 0.15, 0.35)
 
-    # ── Signal 3: Topic keywords ──
+    # Signal 3: Topic keywords
     topic_hits = sum(1 for kw in _TOPIC_KEYWORDS if kw in msg)
     weight += min(topic_hits * 0.12, 0.25)
 
-    # ── Signal 4: EBF energy level (low energy = user is more burdened) ──
+    # Signal 4: EBF energy level
     energy = ebf_data.get("energy_level", "medium")
     energy_bonus = {"low": 0.15, "medium": 0.05, "high": 0.0}.get(energy, 0.05)
-    # Only apply if message has some substance (don't let energy alone push casual up)
     if word_count > 4:
         weight += energy_bonus
 
-    # ── Signal 5: EBF state — only amplifies if message has some weight ──
+    # Signal 5: EBF state
     state = ebf_data.get("current_state", "neutral")
     if weight > 0.2 and state in ("anxious", "sad", "distressed"):
         weight += 0.15
     elif weight > 0.3 and state == "frustrated":
         weight += 0.08
 
-    # ── Signal 6: Question mark (asking something real) ──
+    # Signal 6: Question mark
     if "?" in message and word_count > 5:
         weight += 0.05
 
-    # ── First message of session: slight dampening unless explicitly heavy ──
-    # First message is almost never the moment for heavy context.
+    # First message of session: slight dampening
     if session_message_count <= 1 and weight < 0.6:
         weight *= 0.7
 
-    # Clamp to [0.0, 1.0]
     return round(min(max(weight, 0.0), 1.0), 3)
+
 
 
 def get_weight_tier(weight: float) -> str:
@@ -152,10 +203,12 @@ def get_respond_directive_for_weight(weight: float, base_directive: str) -> str:
         return (
             "Be present and warm. Follow his lead completely. "
             "Do not surface concerns, do not project emotions onto him, do not diagnose or analyze. "
-            "He's just talking. Be the person who's just here."
+            "He's just talking. Be the person who's just here. DO NOT ask questions."
         )
     elif weight < 0.55:
-        return base_directive or "Be present. Warm and easy. Let him set the tone."
+        directive = base_directive or "Be present. Warm and easy. Let him set the tone."
+        return f"{directive} DO NOT ask questions unless necessary. Make statements, stay close."
     else:
         # Heavy enough — use the full EBF-derived directive
-        return base_directive or "Hold space. Say one true thing. Stay close."
+        directive = base_directive or "Hold space. Say one true thing. Stay close."
+        return f"{directive} DO NOT ask questions. Keep your responses grounded, make supportive statements, and do not interrogate him."

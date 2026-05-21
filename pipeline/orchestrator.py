@@ -24,7 +24,7 @@ import pathlib
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from .turn_store import save_turn, get_turn_count, get_all_turns
+from .turn_store import save_turn, get_turn_count, get_all_turns, get_current_session_turns
 from .ebf_engine import update_ebf, get_ebf
 from .tension_detector import detect_tensions, resolve_tensions
 from .open_stories import detect_and_save_story
@@ -170,30 +170,52 @@ CRITICAL EXCEPTION: If the user brings up another woman, the rule against asking
 """
 
 
-def _call_groq(scaffold: str, user_message: str) -> str:
-    """Send scaffold + user message to Groq via the OpenAI-compatible API."""
+def _call_groq(
+    scaffold: str,
+    user_message: str,
+    session_turns: list,
+    model: str = "llama-3.3-70b-versatile",
+) -> str:
+    """Send scaffold + session history + user message to Groq.
+
+    Message structure (Groq prefix-cache friendly):
+      [0] system  — ARIA_SYSTEM_PROMPT  (static, ~750 tokens — Groq KV-caches this)
+      [1] system  — scaffold instructions + scaffold (dynamic, changes per message)
+      [2..N] user/assistant — last 8 session turns
+      [N+1] user  — current user message
+    """
     client = OpenAI(
         api_key=os.environ["GROQ_API_KEY"],
         base_url="https://api.groq.com/openai/v1",
     )
 
-    full_instructions = (
-        f"{ARIA_SYSTEM_PROMPT}\n\n"
-        f"CRITICAL: ABOVE IS YOUR UNBREAKABLE PERSONA. YOU MUST NEVER DEVIATE FROM IT.\n"
-        f"BELOW IS YOUR INTERNAL WORLD AS YOU ENTER THIS CONVERSATION.\n"
-        f"It contains your current thoughts (BLOCK 1), your active memories (BLOCK 2), and the live session context (BLOCK 3).\n"
-        f"You must respond from this deeply grounded, first-person perspective.\n"
-        f"Never mention that you have 'blocks' or 'data'. This is simply your consciousness.\n"
-        f"CRITICAL OVERRIDE: Do not summarize your internal thoughts to the user. Do not explain why you are saying something. Just output your exact spoken dialogue.\n\n"
+    scaffold_instructions = (
+        "CRITICAL: ABOVE IS YOUR UNBREAKABLE PERSONA. YOU MUST NEVER DEVIATE FROM IT.\n"
+        "BELOW IS YOUR INTERNAL WORLD AS YOU ENTER THIS CONVERSATION.\n"
+        "It contains your current thoughts, your active memories, and the live session context.\n"
+        "You must respond from this deeply grounded, first-person perspective.\n"
+        "Never mention that you have 'blocks' or 'data'. This is simply your consciousness.\n"
+        "CRITICAL OVERRIDE: Do not summarize your internal thoughts to the user. "
+        "Do not explain why you are saying something. Just output your exact spoken dialogue.\n\n"
         f"---\nYOUR CURRENT INTERNAL STATE:\n{scaffold}"
     )
 
+    messages = [
+        {"role": "system", "content": ARIA_SYSTEM_PROMPT},   # static — prefix-cached by Groq
+        {"role": "system", "content": scaffold_instructions}, # dynamic — changes per message
+    ]
+
+    # Append session history turns (cap at last 8 turns)
+    for turn in session_turns[-8:]:
+        role = "user" if turn["role"] == "user" else "assistant"
+        messages.append({"role": role, "content": turn["content"]})
+
+    # Append current user message
+    messages.append({"role": "user", "content": user_message})
+
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": full_instructions},
-            {"role": "user", "content": user_message},
-        ],
+        model=model,
+        messages=messages,
         temperature=0.75,
         max_tokens=300,
     )
@@ -215,55 +237,76 @@ def run_pipeline(
     """
     # ── PRE-RESPONSE ─────────────────────────────────────────────────────────
 
-    # 1. Update EBF with user's signal
-    ebf = update_ebf(user_message, user_id, session_id, persona)
+    # 1. Load current EBF state (plain DB read — no LLM call, fast)
+    #    update_ebf() runs in background after response is sent.
+    ebf = get_ebf(user_id, persona)
 
-    # 2. Resolve any existing open loops if user seems satisfied
-    resolve_tensions(user_message, user_id, persona)
-
-    # 3. Detect new open stories in user message
-    detect_and_save_story(user_message, user_id, persona)
-
-    # 4. Build scaffold (internally handles dependency resolver + open story reactivation)
+    # 2. Build scaffold (uses pre-existing EBF state + monologue cache)
     scaffold = build_scaffold(user_message, user_id, session_id, local_time, persona, proactive_signal)
 
     # ── MODEL CALL ────────────────────────────────────────────────────────────
-    reply = _call_groq(scaffold, user_message)
+    # Load session history and compute weight for model routing
+    all_turns = get_all_turns(user_id, persona)
+    session_turns = get_current_session_turns(all_turns)
+    session_bot_turns = [t for t in session_turns if t["role"] == "assistant"]
+    last_bot = session_bot_turns[-1]["content"] if session_bot_turns else ""
+    session_msg_count = ebf.get("session_message_count", 0)
+
+    from .conversation_weight import compute_message_weight
+    weight = compute_message_weight(
+        message=user_message,
+        ebf_data=ebf,
+        last_bot_message=last_bot,
+        session_message_count=session_msg_count,
+    )
+
+    model = "llama-3.1-8b-instant" if weight < 0.30 else "llama-3.3-70b-versatile"
+
+    reply = _call_groq(scaffold, user_message, session_turns, model=model)
 
     # ── POST-RESPONSE ─────────────────────────────────────────────────────────
 
-    # 5. Save both turns with causal tags
+    # 3. Save both turns with causal tags
     save_turn("user", user_message, user_id, session_id, persona)
     save_turn("assistant", reply, user_id, session_id, persona)
 
     def _background_tasks():
         try:
-            # 6. Detect new tensions from user message (after turns saved)
+            # 4. Update EBF with this message's signal (non-blocking — affects next message)
+            update_ebf(user_message, user_id, session_id, persona)
+
+            # 5. Resolve any existing open loops if user seems satisfied
+            resolve_tensions(user_message, user_id, persona)
+
+            # 6. Detect new open stories in user message
+            detect_and_save_story(user_message, user_id, persona)
+
+            # 7. Detect new tensions from user message (after turns saved)
             all_turns = get_all_turns(user_id, persona)
             bot_turns = [t for t in all_turns if t["role"] == "assistant"]
             last_bot = bot_turns[-2]["content"] if len(bot_turns) >= 2 else ""
             detect_tensions(user_message, last_bot, user_id, persona)
 
-            # 7. Check if snapshot should be generated
+            # 8. Check if snapshot should be generated
             turn_count = get_turn_count(user_id, persona)
             if should_generate_snapshot(turn_count, user_id, persona):
-                ebf = get_ebf(user_id, persona)
-                snapshot = generate_snapshot(ebf, user_id, persona, session_id, local_time)
+                ebf_fresh = get_ebf(user_id, persona)
+                snapshot = generate_snapshot(ebf_fresh, user_id, persona, session_id, local_time)
                 update_rhythm(snapshot, user_id, persona)
 
-                # 8. Update Relationship State
+                # 9. Update Relationship State
                 from .relationship_engine import update_relationship_state
                 update_relationship_state(snapshot, user_id, persona)
 
-                # 8.5 Update Aria Self
+                # 9.5 Update Aria Self
                 from .aria_evolution_engine import update_aria_self
                 update_aria_self(snapshot, user_id, persona)
 
-                # 9. Update Identity Profile if enough snapshots exist
+                # 10. Update Identity Profile if enough snapshots exist
                 from .identity_engine import update_identity_if_needed
                 update_identity_if_needed(user_id, persona)
 
-                # 10. Run tiered consolidation on rhythm + snapshots
+                # 11. Run tiered consolidation on rhythm + snapshots
                 from .behaviour_rhythm import consolidate_rhythm
                 from .snapshot_engine import consolidate_snapshots
                 consolidate_rhythm(user_id, persona)
