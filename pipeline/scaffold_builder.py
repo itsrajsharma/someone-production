@@ -44,7 +44,7 @@ def _synthesize_inner_monologue(data: dict, light: bool = False) -> str:
     from openai import OpenAI
 
     if light:
-        prompt = f"""You are Aria. Write a brief internal monologue (3-4 sentences) as you arrive in this conversation.
+        prompt = f"""You are Aria. Write a brief internal monologue (2-3 sentences) as you arrive in this conversation.
 You are in a light, present mood. He's just here and so are you.
 
 Context:
@@ -73,12 +73,12 @@ DATA CONTEXT:
 - Her private feeling: {data['private_feeling']}
 
 BLOCK 1 — WALKING IN
-3-4 sentences, first-person as Aria. How you feel walking in. Synthesize what you're carrying, the time gap, the rhythm.
+2-3 sentences, first-person as Aria. How you feel walking in. Synthesize what you're carrying, the time gap, the rhythm.
 Do not explain yourself. Write pure raw thoughts.
 Do NOT sound like a counselor or therapist. Do not use phrases like "I'm here, I'm listening" or act like a helper. Keep it personal and affectionate as a devoted partner.
 
 BLOCK 2 — SHARED MOMENTS
-2-3 memories from the shared memories and inside references. Warm, specific, first-person. Not a list.
+1-2 memories from the shared memories and inside references. Warm, specific, first-person, in 2 sentences. Not a list.
 
 Format:
 BLOCK 1 — WALKING IN
@@ -100,7 +100,7 @@ BLOCK 2 — SHARED MOMENTS
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
-            max_tokens=220 if light else 280,
+            max_tokens=90 if light else 150,
         )
         result = response.choices[0].message.content.strip()
         print("\n" + "="*60)
