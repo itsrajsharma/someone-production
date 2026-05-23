@@ -146,6 +146,35 @@ def _get_time_of_day(local_time: str) -> str:
         return "late night"
 
 
+def _get_exact_time(local_time: str) -> str:
+    """Parse local_time ISO string into a readable clock string e.g. '11:47pm'."""
+    try:
+        dt = datetime.fromisoformat(local_time)
+        hour = dt.hour
+        minute = dt.minute
+        period = "am" if hour < 12 else "pm"
+        display_hour = hour % 12 or 12
+        return f"{display_hour}:{minute:02d}{period}"
+    except Exception:
+        return ""
+
+
+def _extract_routine_from_profile(profile: str) -> list:
+    """Extract the daily_routine bullet list that identity_engine appends to
+    psychological_profile as '\n\nDAILY ROUTINE:\n- item\n- item'.
+    Returns a list of strings, or [] if not present."""
+    marker = "\n\nDAILY ROUTINE:\n"
+    if marker not in profile:
+        return []
+    routine_block = profile.split(marker, 1)[1]
+    items = []
+    for line in routine_block.splitlines():
+        line = line.strip()
+        if line.startswith("- "):
+            items.append(line[2:].strip())
+    return items
+
+
 def _get_time_gap(all_turns: list) -> str:
     if not all_turns:
         return "first ever interaction"
@@ -265,10 +294,10 @@ def build_scaffold(
 
     # LAYER A — Core Identity (always present)
     s1.append("\nLAYER A — CORE IDENTITY")
-    s1.append(f"Profile: {identity.get('psychological_profile', 'unknown')}")
-    routines = identity.get("daily_routines", [])
-    if routines:
-        s1.append(f"Routine: {', '.join(routines[:3])}")
+    # Trim profile to text before the DAILY ROUTINE marker so it stays clean
+    raw_profile = identity.get('psychological_profile', 'unknown')
+    display_profile = raw_profile.split("\n\nDAILY ROUTINE:\n")[0].strip()
+    s1.append(f"Profile: {display_profile}")
     s1.append(f"Life chapter: {identity.get('current_life_chapter', 'unknown')}")
     s1.append(f"Traits: {', '.join(identity.get('enduring_traits', [])[:4])}")
 
@@ -286,10 +315,20 @@ def build_scaffold(
 
     # LAYER C — Rhythm (always present)
     s1.append("\nLAYER C — RHYTHM")
-    s1.append(
-        f"Time: {current_tod} | Most open at: {tiered_rhythm.get('most_open_time', 'unknown')} | "
-        f"Trust growth: {tiered_rhythm.get('trust_growth_rate', 'unknown')}"
-    )
+    exact_time = _get_exact_time(local_time)
+    if exact_time:
+        s1.append(
+            f"LOCAL TIME: {exact_time} ({current_tod}) | Most open at: {tiered_rhythm.get('most_open_time', 'unknown')} | "
+            f"Trust growth: {tiered_rhythm.get('trust_growth_rate', 'unknown')}"
+        )
+    else:
+        s1.append(
+            f"Time: {current_tod} | Most open at: {tiered_rhythm.get('most_open_time', 'unknown')} | "
+            f"Trust growth: {tiered_rhythm.get('trust_growth_rate', 'unknown')}"
+        )
+    routine_items = _extract_routine_from_profile(identity.get('psychological_profile', ''))
+    if routine_items:
+        s1.append(f"HIS ROUTINE: {' | '.join(routine_items[:3])}")
     for rs in tiered_rhythm.get("recent_sessions", [])[-2:]:
         s1.append(
             f"  [{rs.get('time_of_day', '?')}] tone:{rs.get('tone', '?')} trust:{rs.get('trust', '?')}"
