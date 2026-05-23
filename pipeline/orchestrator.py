@@ -158,11 +158,7 @@ def run_pipeline(
     #    update_ebf() runs in background after response is sent.
     ebf = get_ebf(user_id, persona)
 
-    # 2. Build scaffold (uses pre-existing EBF state + monologue cache)
-    scaffold = build_scaffold(user_message, user_id, session_id, local_time, persona, proactive_signal)
-
-    # ── MODEL CALL ────────────────────────────────────────────────────────────
-    # Load session history and compute weight for model routing
+    # Load session history and compute weight FIRST
     all_turns = get_all_turns(user_id, persona)
     session_turns = get_current_session_turns(all_turns)
     session_bot_turns = [t for t in session_turns if t["role"] == "assistant"]
@@ -175,9 +171,23 @@ def run_pipeline(
         ebf_data=ebf,
         last_bot_message=last_bot,
         session_message_count=session_msg_count,
+        session_turns=session_turns,
     )
 
-    model = "llama-3.1-8b-instant" if weight < 0.30 else "llama-3.3-70b-versatile"
+    # 2. Build scaffold, passing precomputed weight
+    scaffold = build_scaffold(
+        user_message,
+        user_id,
+        session_id,
+        local_time,
+        persona,
+        proactive_signal,
+        precomputed_weight=weight
+    )
+
+    # ── MODEL CALL ────────────────────────────────────────────────────────────
+    # Always route Aria's main chat voice generation to Llama 3.3 70B
+    model = "llama-3.3-70b-versatile"
 
     reply = _call_groq(scaffold, user_message, session_turns, model=model)
 

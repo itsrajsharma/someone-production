@@ -56,27 +56,40 @@ _EXPLICIT_HEAVY = [
 
 def classify_message_weight_llm(
     message: str,
-    last_bot_message: str = "",
+    session_turns: list = None,
 ) -> str:
     """
     Uses llama-3.1-8b-instant to classify the emotional/contextual weight of a message.
-    Returns: 'casual', 'moderate', 'opening_up', or 'heavy'.
+    Returns: 'casual', 'moderate', or 'heavy'.
     """
     import os
     from openai import OpenAI
 
-    prompt = f"""Classify this chat message's emotional weight. Reply with ONE word only: casual, moderate, opening_up, or heavy.
+    # Format the last 3 turns as context
+    context = ""
+    if session_turns:
+        for turn in session_turns[-3:]:
+            role = "user" if turn["role"] == "user" else "assistant"
+            content = turn["content"]
+            if len(content) > 150:
+                content = content[:147] + "..."
+            context += f"{role.upper()}: {content}\n"
+    if not context:
+        context = "No prior session turns."
 
-casual = greetings, banter, teasing, logistics ("hey", "don't lie", "what should we watch", "haha", "ok cool")
-moderate = routine updates, mild feelings ("just got to office", "bit tired", "had a busy day")
-opening_up = vulnerability, negations revealing distress ("actually no I'm not really", "not fine", "struggling lately")
-heavy = crisis, fear, deep pain ("I'm scared", "I feel lost", "we had a big fight")
+    prompt = f"""You are classifying a user message to determine if this conversation moment is casual or emotionally significant.
 
-"anyway" + lightweight topic = casual. Short playful denials = casual. Negations like "not really"/"not fine" = opening_up.
+CLASSIFICATION RULES:
+- casual: greetings, light banter, deflections, routine logistics ("hey", "nvm it's fine", "anyway what should we watch", "doing good", "ok cool", "what about you")
+- moderate: mild vulnerability, sharing details of their day, routine emotional updates ("a bit tired today", "had a busy day", "just finished it", "I'm okay I guess")
+- heavy: high vulnerability, distress, deep emotional topics, or severe anxiety ("I'm scared", "I feel lost", "had a huge fight", "breaking down")
 
-Context: "{last_bot_message}"
-Message: "{message}"
-Weight:"""
+CONTEXT (Last 3 turns):
+{context}
+
+USER MESSAGE: "{message}"
+
+Identify the classification. Respond with exactly one word: casual, moderate, or heavy."""
 
     try:
         client = OpenAI(
@@ -90,7 +103,7 @@ Weight:"""
             max_tokens=10,
         )
         result = response.choices[0].message.content.strip().lower()
-        for category in ["casual", "moderate", "opening_up", "heavy"]:
+        for category in ["casual", "moderate", "heavy"]:
             if category in result:
                 return category
         return "casual"
@@ -104,6 +117,7 @@ def compute_message_weight(
     ebf_data: dict,
     last_bot_message: str = "",
     session_message_count: int = 0,
+    session_turns: list = None,
 ) -> float:
     """
     Returns a float 0.0–1.0 representing conversation weight.
@@ -111,14 +125,13 @@ def compute_message_weight(
     Falls back to python heuristics if the LLM call fails.
     """
     # 1. Attempt LLM classification
-    category = classify_message_weight_llm(message, last_bot_message)
+    category = classify_message_weight_llm(message, session_turns)
     
     if category != "fallback":
         mapping = {
             "casual": 0.15,
-            "moderate": 0.40,
-            "opening_up": 0.65,
-            "heavy": 0.85
+            "moderate": 0.45,
+            "heavy": 0.80
         }
         return mapping.get(category, 0.15)
 
@@ -138,7 +151,7 @@ def compute_message_weight(
 
     # Explicit heavy signals: instant high weight
     if any(kw in msg for kw in _EXPLICIT_HEAVY):
-        return 0.85
+        return 0.80
 
     # Deflection: moderate weight
     if any(kw in msg for kw in _DEFLECTION_SIGNALS):
@@ -187,8 +200,6 @@ def get_weight_tier(weight: float) -> str:
         return "casual"
     elif weight < 0.55:
         return "moderate"
-    elif weight < 0.75:
-        return "opening_up"
     else:
         return "heavy"
 
@@ -196,19 +207,19 @@ def get_weight_tier(weight: float) -> str:
 def get_respond_directive_for_weight(weight: float, base_directive: str) -> str:
     """
     Returns the RESPOND directive appropriate for the current weight tier.
-    In casual mode this replaces the EBF-derived directive entirely.
-    In heavier modes, the base_directive from EBF is used.
+    Uses dynamic context directive references for the persistent scaffold indices.
     """
     if weight < 0.30:
         return (
-            "Be present and warm. Follow his lead completely. "
-            "Do not surface concerns, do not project emotions onto him, do not diagnose or analyze. "
-            "He's just talking. Be the person who's just here. DO NOT ask questions."
+            "casual and present — drawers indexed above, do not surface tensions or health this turn"
         )
     elif weight < 0.55:
-        directive = base_directive or "Be present. Warm and easy. Let him set the tone."
-        return f"{directive} DO NOT ask questions unless necessary. Make statements, stay close."
+        return (
+            f"moderate and warm — draw gently from relationship patterns and inside references, "
+            f"({base_directive or 'Be present.'}) DO NOT ask questions unless logistically required."
+        )
     else:
-        # Heavy enough — use the full EBF-derived directive
-        directive = base_directive or "Hold space. Say one true thing. Stay close."
-        return f"{directive} DO NOT ask questions. Keep your responses grounded, make supportive statements, and do not interrogate him."
+        return (
+            f"heavy and devoted — drawers open, surface tensions and health anomaly gently, "
+            f"({base_directive or 'Reassure quietly.'}) DO NOT ask questions; reassure through presence."
+        )

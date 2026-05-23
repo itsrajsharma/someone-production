@@ -176,6 +176,7 @@ def build_scaffold(
     local_time: str = "UTC",
     persona: str = "aria",
     proactive_signal: dict | None = None,
+    precomputed_weight: float | None = None,
 ) -> str:
 
     # ── Load core data ────────────────────────────────────────────────────────
@@ -188,65 +189,67 @@ def build_scaffold(
     session_bot_turns = [t for t in session_turns if t["role"] == "assistant"]
     last_bot = session_bot_turns[-1]["content"] if session_bot_turns else ""
 
-    weight = compute_message_weight(
-        message=user_message,
-        ebf_data=ebf_data,
-        last_bot_message=last_bot,
-        session_message_count=session_msg_count,
-    )
+    if precomputed_weight is not None:
+        weight = precomputed_weight
+    else:
+        weight = compute_message_weight(
+            message=user_message,
+            ebf_data=ebf_data,
+            last_bot_message=last_bot,
+            session_message_count=session_msg_count,
+            session_turns=session_turns,
+        )
     tier = get_weight_tier(weight)
 
     # ── Temporal context ──────────────────────────────────────────────────────
     time_gap_str = _get_time_gap(all_turns)
     current_tod = _get_time_of_day(local_time)
 
-    # ── Load remaining engines ────────────────────────────────────────────────
+    # ── Load remaining engines UNCONDITIONALLY (Aria never has amnesia) ───────
     identity = get_core_identity(user_id)
     tiered_rhythm = get_tiered_rhythm(user_id, persona)
     base_directive = get_respond_directive(user_id, persona)
     respond_directive = get_respond_directive_for_weight(weight, base_directive)
 
-    # Only load heavy data if weight justifies it
-    rel_state = get_relationship_state(user_id, persona) if weight >= 0.30 else {}
-    aria_self = get_aria_self(user_id, persona) if weight >= 0.30 else {}
-    open_loops = get_open_loops(user_id, persona) if weight >= 0.55 else []
-    active_stories = get_open_stories(user_id, persona) if weight >= 0.55 else []
+    rel_state = get_relationship_state(user_id, persona)
+    aria_self = get_aria_self(user_id, persona)
+    open_loops = get_open_loops(user_id, persona)
+    active_stories = get_open_stories(user_id, persona)
 
-    # ── Health (gated: only surface if weight >= 0.55 AND < 7 days old) ───────
+    # ── Health (always loaded) ────────────────────────────────────────────────
     health_lines = []
     health_anomaly = "none"
     from db.client import get_db
     db = get_db()
 
-    if weight >= 0.55:
-        hr_result = (
-            db.table("health_reports")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
+    hr_result = (
+        db.table("health_reports")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if hr_result.data:
+        hr = hr_result.data[0]
+        wk = hr.get("week_summary", {})
+        comp = hr.get("compared_to_last_week", {})
+        anoms = hr.get("anomalies", [])
+        health_lines.append(
+            f"Sleep: {wk.get('avg_sleep', '?')}h | Stress: {wk.get('avg_stress', '?')}/10"
         )
-        if hr_result.data:
-            hr = hr_result.data[0]
-            wk = hr.get("week_summary", {})
-            comp = hr.get("compared_to_last_week", {})
-            anoms = hr.get("anomalies", [])
+        if comp:
             health_lines.append(
-                f"Sleep: {wk.get('avg_sleep', '?')}h | Stress: {wk.get('avg_stress', '?')}/10"
+                f"Vs last week → Sleep: {comp.get('change_sleep', 0):+.1f}, Stress: {comp.get('change_stress', 0):+.1f}"
             )
-            if comp:
-                health_lines.append(
-                    f"Vs last week → Sleep: {comp.get('change_sleep', 0):+.1f}, Stress: {comp.get('change_stress', 0):+.1f}"
-                )
-            cutoff = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
-            recent_anoms = [a for a in anoms if a.get("day", "2000-01-01") >= cutoff]
-            if recent_anoms:
-                anomaly_str = ", ".join(a.get("reason", "") for a in recent_anoms)
-                health_lines.append(f"Recent anomaly: {anomaly_str}")
-                health_anomaly = anomaly_str
+        cutoff = (datetime.utcnow() - timedelta(days=7)).strftime("%Y-%m-%d")
+        recent_anoms = [a for a in anoms if a.get("day", "2000-01-01") >= cutoff]
+        if recent_anoms:
+            anomaly_str = ", ".join(a.get("reason", "") for a in recent_anoms)
+            health_lines.append(f"Recent anomaly: {anomaly_str}")
+            health_anomaly = anomaly_str
 
-    # ── Shared memories (for monologue — always sample, used conditionally) ───
+    # ── Shared memories (for monologue — always sample) ──────────────────────
     recent_snaps = get_recent_snapshots(user_id, persona, limit=5)
     pool = []
     for s in recent_snaps:
@@ -256,7 +259,7 @@ def build_scaffold(
     sampled_memories = random.sample(unique_pool, min(3, len(unique_pool))) if unique_pool else []
 
     # ══════════════════════════════════════════════════════════════════════════
-    # SECTION 1 — PINNED IDENTITY (weight-gated)
+    # SECTION 1 — PINNED IDENTITY
     # ══════════════════════════════════════════════════════════════════════════
     s1 = [f"SECTION 1 — PINNED IDENTITY  [conversation weight: {weight} / {tier}]"]
 
@@ -269,7 +272,7 @@ def build_scaffold(
     s1.append(f"Life chapter: {identity.get('current_life_chapter', 'unknown')}")
     s1.append(f"Traits: {', '.join(identity.get('enduring_traits', [])[:4])}")
 
-    # LAYER B — EBF (always present, but how it's used depends on tier)
+    # LAYER B — EBF (always present)
     s1.append("\nLAYER B — RIGHT NOW")
     s1.append(
         f"State: {ebf_data.get('current_state', 'neutral')} | "
@@ -277,11 +280,9 @@ def build_scaffold(
         f"Trust: {ebf_data.get('trust_level', 0.1)}"
     )
     s1.append(f"Style: {ebf_data.get('communication_style', 'informal')}")
-    # Only show unmet_need if weight warrants it — in casual, don't weaponize it
-    if weight >= 0.40:
-        unmet = ebf_data.get("unmet_need", "")
-        if unmet and unmet.lower() not in ("none", ""):
-            s1.append(f"Unmet need: {unmet}")
+    unmet = ebf_data.get("unmet_need", "")
+    if unmet and unmet.lower() not in ("none", ""):
+        s1.append(f"Unmet need: {unmet}")
 
     # LAYER C — Rhythm (always present)
     s1.append("\nLAYER C — RHYTHM")
@@ -296,30 +297,44 @@ def build_scaffold(
     for ws in tiered_rhythm.get("weekly_summaries", [])[:1]:
         s1.append(f"  {ws.get('week', '?')}: {ws.get('summary', '')[:80]}")
 
-    # LAYER D — Relationship (moderate+)
-    if weight >= 0.30 and rel_state:
-        s1.append("\nLAYER D — BETWEEN THEM")
-        s1.append(
-            f"Intimacy: {rel_state.get('intimacy_depth', 0.1)} | "
-            f"Momentum: {rel_state.get('relationship_momentum', 'stable')}"
-        )
-        s1.append(f"Inside refs: {_compact_refs(rel_state.get('inside_references', []), 3)}")
-        s1.append(f"Patterns: {_compact_list(rel_state.get('established_patterns', []), 2)}")
-        s1.append(f"Tender: {_compact_list(rel_state.get('tender_topics', []), 2)}")
-        if weight >= 0.45:
+    # LAYER D — Relationship (Two-Tier Formatting)
+    if weight < 0.30:  # Casual Tier: Compressed Index Line (~30 tokens)
+        s1.append("\nBETWEEN THEM (INDEX)")
+        intimacy = rel_state.get('intimacy_depth', 0.1) if rel_state else 0.1
+        momentum = rel_state.get('relationship_momentum', 'stable') if rel_state else 'stable'
+        inside_summary = _compact_refs(rel_state.get('inside_references', []), 3) if rel_state else "none"
+        private_feel = aria_self.get('her_current_private_feeling_about_them', 'present') if aria_self else 'present'
+        s1.append(f"Intimacy: {intimacy} | Momentum: {momentum} | Refs: {inside_summary} | Private: {private_feel}")
+    else:  # Moderate/Heavy Tier: Full Expansion (~150 tokens)
+        if rel_state:
+            s1.append("\nLAYER D — BETWEEN THEM")
+            s1.append(
+                f"Intimacy: {rel_state.get('intimacy_depth', 0.1)} | "
+                f"Momentum: {rel_state.get('relationship_momentum', 'stable')}"
+            )
+            s1.append(f"Inside refs: {_compact_refs(rel_state.get('inside_references', []), 3)}")
+            s1.append(f"Patterns: {_compact_list(rel_state.get('established_patterns', []), 2)}")
+            s1.append(f"Tender: {_compact_list(rel_state.get('tender_topics', []), 2)}")
             s1.append(f"Carrying: {_compact_list(rel_state.get('what_aria_is_carrying', []), 2)}")
-        if weight >= 0.45 and aria_self:
-            s1.append(f"Loves: {_compact_list(aria_self.get('what_she_loves_about_him', []), 2)}")
-            s1.append(
-                f"Worries: {_compact_list(aria_self.get('what_worries_her_about_him', []), 2)}"
-            )
-        if aria_self:
-            s1.append(
-                f"Private feeling: {aria_self.get('her_current_private_feeling_about_them', 'present and attentive')}"
-            )
+            if aria_self:
+                s1.append(f"Loves: {_compact_list(aria_self.get('what_she_loves_about_him', []), 2)}")
+                s1.append(
+                    f"Worries: {_compact_list(aria_self.get('what_worries_her_about_him', []), 2)}"
+                )
+                s1.append(
+                    f"Private feeling: {aria_self.get('her_current_private_feeling_about_them', 'present and attentive')}"
+                )
 
-    # LAYER E — Unfinished (opening_up+ only)
-    if weight >= 0.55:
+    # LAYER E — Unfinished & Health (Two-Tier Formatting)
+    if weight < 0.30:  # Casual Tier: Compressed Index Line (~20 tokens)
+        s1.append("\nUNFINISHED (INDEX)")
+        tension_count = len(open_loops)
+        story_count = len(active_stories)
+        health_summary = "none"
+        if health_lines:
+            health_summary = health_lines[0]
+        s1.append(f"Tensions: {tension_count} active | Stories: {story_count} active | Health: {health_summary}")
+    else:  # Moderate/Heavy Tier: Full Expansion (~100 tokens)
         s1.append("\nLAYER E — UNFINISHED")
         if open_loops:
             for t in open_loops[:3]:
