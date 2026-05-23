@@ -100,7 +100,7 @@ BLOCK 2 — SHARED MOMENTS
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
-            max_tokens=90 if light else 150,
+            max_tokens=60 if light else 150,
         )
         result = response.choices[0].message.content.strip()
         print("\n" + "="*60)
@@ -353,13 +353,28 @@ def build_scaffold(
     section_1 = "\n".join(s1)
 
     # ══════════════════════════════════════════════════════════════════════════
-    # SECTION 2 — INNER MONOLOGUE (weight-gated)
+    # SECTION 2 — INNER MONOLOGUE (always present)
     # ══════════════════════════════════════════════════════════════════════════
     section_2 = ""
 
     if weight < 0.30:
-        # Casual: no monologue. She doesn't walk in loaded.
-        pass
+        # Casual: light monologue, always on — walking-in energy matters most
+        # on casual turns precisely because there's no heavy content to carry her.
+        cache_tier = "casual"
+        cached = get_cached_monologue(session_id, user_id, persona, cache_tier)
+        if cached:
+            section_2 = f"SECTION 2 — INNER MONOLOGUE\n{cached}"
+        else:
+            casual_data = {
+                "time_gap_str": time_gap_str,
+                "private_feeling": aria_self.get("her_current_private_feeling_about_them", "present")
+                if aria_self
+                else "present",
+                "sampled_memories": sampled_memories,
+            }
+            mono = _synthesize_inner_monologue(casual_data, light=True)
+            save_monologue_cache(session_id, user_id, persona, mono, cache_tier)
+            section_2 = f"SECTION 2 — INNER MONOLOGUE\n{mono}"
     elif weight < 0.55:
         # Moderate weight: light monologue, cached per session
         cache_tier = "light"
@@ -434,10 +449,10 @@ def build_scaffold(
     if reactivated and weight >= 0.40:
         s3.append(f"REACTIVATED: {reactivated['title']} — {reactivated['summary'][:60]}")
 
-    if older_memory and weight >= 0.30:
+    if older_memory:
         s3.append("\n[RELEVANT PAST TURNS]")
         for t in older_memory[:4]:
-            content = t["content"][:100] + "..." if len(t["content"]) > 100 else t["content"]
+            content = t["content"][:200] + "..." if len(t["content"]) > 200 else t["content"]
             s3.append(f"  {t['role'].upper()}: {content}")
 
     section_3 = "\n".join(s3)
