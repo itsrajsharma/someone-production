@@ -174,14 +174,20 @@ def run_pipeline(
         session_turns=session_turns,
     )
 
-    # 2. Build scaffold, passing precomputed weight
+    # 2. Build scaffold, passing precomputed weight.
+    # Proactive signal is first-turn only — if a user turn already exists in this
+    # session, we're past turn 1 and the signal is cleared so it doesn't surface
+    # the same thought awkwardly on message 3, 4, 5.
+    session_user_turns = [t for t in session_turns if t["role"] == "user"]
+    effective_proactive = proactive_signal if len(session_user_turns) == 0 else None
+
     scaffold = build_scaffold(
         user_message,
         user_id,
         session_id,
         local_time,
         persona,
-        proactive_signal,
+        effective_proactive,
         precomputed_weight=weight
     )
 

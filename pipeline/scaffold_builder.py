@@ -405,11 +405,6 @@ def build_scaffold(
                 "respond_directive": respond_directive,
                 "aria_carrying": _compact_list(rel_state.get("what_aria_is_carrying", []), 3) if rel_state else "nothing specific",
                 "health_anomaly": health_anomaly,
-                "proactive_signal": (
-                    proactive_signal.get("suggested_injection", "none")
-                    if proactive_signal and proactive_signal.get("has_signal")
-                    else "none"
-                ),
                 "time_gap_str": time_gap_str,
                 "rhythm_str": f"At {current_tod}, most open at {tiered_rhythm.get('most_open_time', 'unknown')}",
                 "sampled_memories": sampled_memories,
@@ -442,6 +437,19 @@ def build_scaffold(
         "SECTION 3 — LIVE RETRIEVAL",
         f"INTENT: {intent}",
     ]
+
+    # Proactive signal — pinned directly in Section 3, always present when active.
+    # Guaranteed to reach the final LLM unfiltered, regardless of weight tier.
+    # Only fires on first turn of session (gated by orchestrator before build_scaffold).
+    if proactive_signal and proactive_signal.get("has_signal"):
+        signal_content = proactive_signal.get("content", "")
+        signal_type = proactive_signal.get("type", "")
+        urgency = proactive_signal.get("urgency", "low")
+        s3.append(
+            f"PROACTIVE [{urgency}]: she has been thinking about — {signal_content} "
+            f"({signal_type}) — surface it naturally if the moment allows, do not announce it"
+        )
+
     if session_facts:
         s3.append(f"SESSION KNOWN: {' | '.join(session_facts[:5])}")
 
