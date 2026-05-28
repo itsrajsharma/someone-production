@@ -15,6 +15,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 from db.client import get_db
+from .llm_client import get_fast_client
 
 _DEFAULT_RHYTHM = {
     "most_open_time": "unknown",
@@ -136,7 +137,6 @@ def consolidate_rhythm(user_id: str, persona: str = "aria"):
 def _summarize_sessions_llm(sessions: list, week_key: str) -> str:
     """LLM summarizes a week's raw sessions into a compact paragraph."""
     from openai import OpenAI
-from .llm_client import get_fast_client
     session_text = ""
     for s in sessions:
         session_text += f"Time: {s.get('time_of_day', '?')}, Tone: {s.get('tone', '?')}, Trust: {s.get('trust', '?')}, Stories: {s.get('num_stories', 0)}\n"

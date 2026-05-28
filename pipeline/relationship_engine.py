@@ -11,6 +11,7 @@ from datetime import datetime
 from db.client import get_db
 from .turn_store import get_all_turns
 from .tension_detector import get_open_loops
+from .llm_client import get_fast_client
 
 _DEFAULT_RELATIONSHIP = {
     "intimacy_depth": 0.1,
@@ -48,7 +49,6 @@ def _save(state: dict, user_id: str, persona: str = "aria"):
 
 def _analyze_relationship_llm(turns: list, open_tensions: list, current_state: dict, last_snapshot: dict) -> dict:
     from openai import OpenAI
-from .llm_client import get_fast_client
     from .turn_store import get_current_session_turns
     
     session_turns = get_current_session_turns(turns)

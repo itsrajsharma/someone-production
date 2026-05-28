@@ -4,36 +4,38 @@ LLM Client Factory
 Single source of truth for all LLM API calls in the pipeline.
 
 Routes everything through FreeLLMAPI — a local OpenAI-compatible proxy
-that aggregates free tiers from Groq, Google, Cerebras, SambaNova, etc.
-behind a single /v1/chat/completions endpoint with automatic fallover.
+that aggregates free tiers from Groq, Google, Cerebras, SambaNova, Mistral,
+OpenRouter, Cohere, HuggingFace, NVIDIA, and more.
 
 FreeLLMAPI: https://github.com/tashfeenahmed/freellmapi
-Start it:   npm run dev          (dev — serves on :5173 UI + :3001 API)
-            node server/dist/index.js  (prod — both on :3001)
+Start it:   npm run dev  (in the freellmapi directory, serves API on :3001)
 
-Config (add to .env):
-    FREELLM_BASE_URL=http://localhost:3001/v1
-    FREELLM_KEY=freellmapi-xxxxxxxxxxxxxxxx
+WHY "auto":
+    Every provider has TPM/RPM/TPD limits. Hitting one used to crash the
+    whole pipeline (the original 10k token burst problem on Groq 8B).
+    FreeLLMAPI solves this transparently:
+      - tracks per-key usage across all providers
+      - on 429 / rate limit / token exhaustion, router immediately
+        falls over to the next model in the fallback chain (up to 20 tries)
+      - sticky sessions keep multi-turn conversations on the same model
+        for 30 minutes to avoid mid-conversation model switches
+    Using "auto" lets the router + fallback chain handle all of this.
+    The fallback chain order is set in the dashboard at localhost:5173.
 
-Note: FreeLLMAPI does NOT support /v1/embeddings.
+    If you want to force a specific model (e.g. for testing), override:
+      FREELLM_MAIN_MODEL=mistral-large-latest
+      FREELLM_FAST_MODEL=llama-3.1-8b-instant
+
+NOTE: FreeLLMAPI does NOT support /v1/embeddings.
       dependency_resolver.py keeps its direct Mistral embed calls.
 
-Model tiers:
-    MAIN_MODEL  — Aria's voice, monologue, Oracle. Needs quality.
-                  Default: "llama-3.3-70b-versatile"
-                  FreeLLMAPI routes to Groq first; falls over to
-                  SambaNova Llama 4 / Gemini 2.5 Flash etc. on 429.
-
-    FAST_MODEL  — All background classification (EBF, weight, snapshot,
-                  identity, rhythm, session facts, etc.). Speed > quality.
-                  Default: "auto"  — router picks fastest available.
+Config (.env):
+    FREELLM_BASE_URL=http://localhost:3001/v1
+    FREELLM_KEY=freellmapi-...
 """
 
 import os
 from openai import OpenAI
-
-_DEFAULT_MAIN_MODEL = "llama-3.3-70b-versatile"
-_DEFAULT_FAST_MODEL = "auto"
 
 
 def _get_client() -> OpenAI:
@@ -53,11 +55,14 @@ def _get_client() -> OpenAI:
 
 def get_fast_client() -> tuple[OpenAI, str]:
     """
-    (client, model) for fast background tasks.
+    (client, model) for fast background classification tasks.
     EBF, weight classification, snapshot, identity, rhythm,
     session facts, relationship engine, aria evolution, proactive.
+
+    Defaults to "auto" — router picks the fastest healthy model.
+    Override with FREELLM_FAST_MODEL in .env if needed.
     """
-    model = os.environ.get("FREELLM_FAST_MODEL", _DEFAULT_FAST_MODEL)
+    model = os.environ.get("FREELLM_FAST_MODEL", "auto")
     return _get_client(), model
 
 
@@ -65,6 +70,9 @@ def get_main_client() -> tuple[OpenAI, str]:
     """
     (client, model) for Aria's main voice generation.
     Orchestrator chat, monologue synthesis, intro, Oracle.
+
+    Defaults to "auto" — router picks the best healthy model.
+    Override with FREELLM_MAIN_MODEL in .env if needed.
     """
-    model = os.environ.get("FREELLM_MAIN_MODEL", _DEFAULT_MAIN_MODEL)
+    model = os.environ.get("FREELLM_MAIN_MODEL", "auto")
     return _get_client(), model

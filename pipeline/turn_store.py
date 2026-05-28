@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Optional
 
 from db.client import get_db
+from .llm_client import get_fast_client
 
 
 # ── Tag Extraction ────────────────────────────────────────────────────────────
@@ -87,7 +88,6 @@ def extract_tags(text: str) -> dict:
 def extract_session_facts(user_message: str, user_id: str, session_id: str, persona: str = "aria"):
     """Extract and persist session-scoped facts from user message."""
     from openai import OpenAI
-from .llm_client import get_fast_client
     import json
     import os
 

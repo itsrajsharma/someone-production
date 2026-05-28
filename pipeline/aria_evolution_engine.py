@@ -10,6 +10,7 @@ from datetime import datetime
 from db.client import get_db
 from .turn_store import get_all_turns
 from .relationship_engine import get_relationship_state
+from .llm_client import get_fast_client
 
 _DEFAULT_ARIA_SELF = {
     "what_she_loves_about_him": [],
@@ -45,7 +46,6 @@ def _save(state: dict, user_id: str, persona: str = "aria"):
 
 def _analyze_aria_evolution_llm(turns: list, current_state: dict, last_snapshot: dict, rel_state: dict) -> dict:
     from openai import OpenAI
-from .llm_client import get_fast_client
     from .turn_store import get_current_session_turns
     
     session_turns = get_current_session_turns(turns)

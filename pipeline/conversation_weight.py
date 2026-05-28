@@ -12,6 +12,7 @@ Called before build_scaffold() so the scaffold knows what to include.
 """
 
 import re
+from .llm_client import get_fast_client
 
 # ── Keyword Signal Tables ─────────────────────────────────────────────────────
 
@@ -64,7 +65,6 @@ def classify_message_weight_llm(
     """
     import os
     from openai import OpenAI
-from .llm_client import get_fast_client
 
     # Format the last 3 turns as context
     context = ""

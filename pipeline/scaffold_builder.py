@@ -101,6 +101,11 @@ BLOCK 2 — SHARED MOMENTS
             max_tokens=60 if light else 150,
         )
         result = response.choices[0].message.content.strip()
+        # Strip reasoning/thinking blocks that some models emit
+        import re as _re
+        result = _re.sub(r'<think>.*?</think>', '', result, flags=_re.DOTALL).strip()
+        result = _re.sub(r'<\|thinking\|>.*?<\|/thinking\|>', '', result, flags=_re.DOTALL).strip()
+        result = _re.sub(r'<reasoning>.*?</reasoning>', '', result, flags=_re.DOTALL).strip()
         print("\n" + "="*60)
         print("[MONOLOGUE RESPONSE FROM MAIN MODEL]")
         print(result)
@@ -442,6 +447,11 @@ def build_scaffold(
                 "respond_directive": respond_directive,
                 "aria_carrying": _compact_list(rel_state.get("what_aria_is_carrying", []), 3) if rel_state else "nothing specific",
                 "health_anomaly": health_anomaly,
+                "proactive_signal": (
+                    proactive_signal.get("content", "none")
+                    if proactive_signal and proactive_signal.get("has_signal")
+                    else "none"
+                ),
                 "time_gap_str": time_gap_str,
                 "rhythm_str": f"At {current_tod}, most open at {tiered_rhythm.get('most_open_time', 'unknown')}",
                 "sampled_memories": sampled_memories,

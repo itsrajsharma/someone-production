@@ -11,6 +11,7 @@ from datetime import datetime
 
 from db.client import get_db
 from .snapshot_engine import get_all_snapshots
+from .llm_client import get_fast_client
 
 UPDATE_INTERVAL_SNAPSHOTS = 2  # Update identity every 2 snapshots (~20 turns)
 
@@ -61,7 +62,6 @@ def _save(identity: dict, user_id: str):
 
 def update_identity_if_needed(user_id: str, persona: str = "aria"):
     from openai import OpenAI
-from .llm_client import get_fast_client
     import json
 
     snapshots = get_all_snapshots(user_id, persona)

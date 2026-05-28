@@ -12,6 +12,7 @@ from datetime import datetime
 from db.client import get_db
 from .turn_store import get_all_turns
 from .open_stories import get_open_stories
+from .llm_client import get_fast_client
 
 SNAPSHOT_INTERVAL = 25  # generate snapshot every N turns
 MAX_RAW_SNAPSHOTS = 5
@@ -21,7 +22,6 @@ MAX_RAW_SNAPSHOTS = 5
 
 def _generate_snapshot_llm(turns: list) -> dict:
     from openai import OpenAI
-from .llm_client import get_fast_client
     import json
 
     transcript = ""

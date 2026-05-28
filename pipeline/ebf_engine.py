@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 
 from db.client import get_db
+from .llm_client import get_fast_client
 
 # Default EBF state
 _DEFAULT_EBF = {
@@ -67,7 +68,6 @@ def _save(ebf: dict, user_id: str, persona: str = "aria"):
 
 def _analyze_ebf_llm(user_message: str, current_ebf: dict) -> dict:
     from openai import OpenAI
-from .llm_client import get_fast_client
     import json
 
     prompt = f"""Analyze the following user message to determine their current emotional and communicative state.
