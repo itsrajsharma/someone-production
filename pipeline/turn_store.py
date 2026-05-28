@@ -87,6 +87,7 @@ def extract_tags(text: str) -> dict:
 def extract_session_facts(user_message: str, user_id: str, session_id: str, persona: str = "aria"):
     """Extract and persist session-scoped facts from user message."""
     from openai import OpenAI
+from .llm_client import get_fast_client
     import json
     import os
 
@@ -105,12 +106,9 @@ Rules:
 User Message: "{user_message.strip()}"
 """
     try:
-        client = OpenAI(
-            api_key=os.environ["GROQ_API_KEY"],
-            base_url="https://api.groq.com/openai/v1",
-        )
+        client, _fast_model = get_fast_client()
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=_fast_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )

@@ -27,6 +27,7 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 from pipeline.orchestrator import run_pipeline
+from pipeline.llm_client import get_main_client
 
 load_dotenv()
 
@@ -277,12 +278,9 @@ def intro(
         raise HTTPException(status_code=404, detail="Unknown persona")
 
     try:
-        client = OpenAI(
-            api_key=os.environ["GROQ_API_KEY"],
-            base_url="https://api.groq.com/openai/v1",
-        )
+        client, main_model = get_main_client()
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=main_model,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": "Open the session."},
@@ -354,15 +352,12 @@ def oracle(
 
     scaffold = build_oracle_scaffold(user_message, user_id, session_id)
 
-    client = OpenAI(
-        api_key=os.environ["GROQ_API_KEY"],
-        base_url="https://api.groq.com/openai/v1",
-    )
+    client, main_model = get_main_client()
 
     full_instructions = f"{ORACLE_SYSTEM_PROMPT}\n\n---\nPIPELINE BRIEF:\n{scaffold}"
 
     response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
+        model=main_model,
         messages=[
             {"role": "system", "content": full_instructions},
             {"role": "user", "content": user_message},

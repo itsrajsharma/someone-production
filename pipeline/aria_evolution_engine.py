@@ -45,6 +45,7 @@ def _save(state: dict, user_id: str, persona: str = "aria"):
 
 def _analyze_aria_evolution_llm(turns: list, current_state: dict, last_snapshot: dict, rel_state: dict) -> dict:
     from openai import OpenAI
+from .llm_client import get_fast_client
     from .turn_store import get_current_session_turns
     
     session_turns = get_current_session_turns(turns)
@@ -92,12 +93,9 @@ Schema:
 }}"""
 
     try:
-        client = OpenAI(
-            api_key=os.environ["GROQ_API_KEY"],
-            base_url="https://api.groq.com/openai/v1",
-        )
+        client, _fast_model = get_fast_client()
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=_fast_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
         )

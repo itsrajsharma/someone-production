@@ -32,6 +32,7 @@ from .conversation_weight import (
     get_respond_directive_for_weight,
 )
 from .monologue_cache import get_cached_monologue, save_monologue_cache
+from .llm_client import get_main_client
 
 
 # ── Inner Monologue ───────────────────────────────────────────────────────────
@@ -88,23 +89,20 @@ BLOCK 2 — SHARED MOMENTS
 (memories)"""
 
     try:
-        client = OpenAI(
-            api_key=os.environ["GROQ_API_KEY"],
-            base_url="https://api.groq.com/openai/v1",
-        )
+        client, main_model = get_main_client()
         print("\n" + "="*60)
-        print("[MONOLOGUE PROMPT SENT TO 70B]")
+        print("[MONOLOGUE PROMPT SENT TO MAIN MODEL]")
         print(prompt)
         print("="*60 + "\n")
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=main_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.4,
             max_tokens=60 if light else 150,
         )
         result = response.choices[0].message.content.strip()
         print("\n" + "="*60)
-        print("[MONOLOGUE RESPONSE FROM 70B]")
+        print("[MONOLOGUE RESPONSE FROM MAIN MODEL]")
         print(result)
         print("="*60 + "\n")
         return result

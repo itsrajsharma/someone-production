@@ -64,6 +64,7 @@ def classify_message_weight_llm(
     """
     import os
     from openai import OpenAI
+from .llm_client import get_fast_client
 
     # Format the last 3 turns as context
     context = ""
@@ -92,12 +93,9 @@ USER MESSAGE: "{message}"
 Identify the classification. Respond with exactly one word: casual, moderate, or heavy."""
 
     try:
-        client = OpenAI(
-            api_key=os.environ["GROQ_API_KEY"],
-            base_url="https://api.groq.com/openai/v1",
-        )
+        client, _fast_model = get_fast_client()
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=_fast_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
             max_tokens=10,

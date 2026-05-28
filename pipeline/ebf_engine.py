@@ -67,6 +67,7 @@ def _save(ebf: dict, user_id: str, persona: str = "aria"):
 
 def _analyze_ebf_llm(user_message: str, current_ebf: dict) -> dict:
     from openai import OpenAI
+from .llm_client import get_fast_client
     import json
 
     prompt = f"""Analyze the following user message to determine their current emotional and communicative state.
@@ -89,12 +90,9 @@ CRITICAL RULES:
 User Message: "{user_message}"
 """
     try:
-        client = OpenAI(
-            api_key=os.environ["GROQ_API_KEY"],
-            base_url="https://api.groq.com/openai/v1",
-        )
+        client, _fast_model = get_fast_client()
         response = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model=_fast_model,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1,
         )
