@@ -226,7 +226,10 @@ export function isRetryableError(err: any): boolean {
     // a bare "400" which is deliberately non-retryable for validation errors.
     || msg.includes('api error 400')
     // 410: model endpoint is gone (deprecated/removed).
-    || msg.includes('410') || msg.includes('gone');
+    || msg.includes('410') || msg.includes('gone')
+    // 401/403: invalid or expired API keys for a specific provider.
+    // We want to skip this provider and fall over to the next healthy one!
+    || msg.includes('401') || msg.includes('403') || msg.includes('forbidden') || msg.includes('unauthorized');
 }
 
 proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
