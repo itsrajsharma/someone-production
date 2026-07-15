@@ -36,8 +36,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://someone-production-j5q0qu6s6-rajsharmas-projects.vercel.app",
-        "https://someone-production.vercel.app"
+        "https://someone-production.vercel.app",
+        "null"
     ],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -52,6 +54,7 @@ from jwt import PyJWKClient as _PyJWKClient
 
 # Supabase JWKS endpoint — public keys for ES256 token verification
 _SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+_SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET", "").strip()
 _jwks_client: "_PyJWKClient | None" = None
 
 
@@ -64,11 +67,28 @@ def _get_jwks_client() -> _PyJWKClient:
 
 def _verify_token(credentials: HTTPAuthorizationCredentials = Depends(_security)) -> str:
     """
-    Verify the Supabase JWT (ES256 / JWKS) and return the user_id (sub claim).
-    Uses Supabase's public JWKS endpoint — no static secret needed.
+    Verify the Supabase JWT.
+    First tries decoding symmetrically using SUPABASE_JWT_SECRET (HS256),
+    then falls back to public JWKS endpoints (ES256 / RS256) if needed.
     """
     token = credentials.credentials
     try:
+        if _SUPABASE_JWT_SECRET:
+            try:
+                payload = _pyjwt.decode(
+                    token,
+                    _SUPABASE_JWT_SECRET,
+                    algorithms=["HS256"],
+                    options={"verify_aud": False},
+                )
+                user_id: str = payload.get("sub")
+                if user_id:
+                    return user_id
+            except _pyjwt.PyJWTError:
+                # If symmetric verification fails, fall through to JWKS check
+                pass
+
+        # Fallback to JWKS verification
         client = _get_jwks_client()
         signing_key = client.get_signing_key_from_jwt(token)
         payload = _pyjwt.decode(
@@ -127,10 +147,16 @@ class AuthRequest(BaseModel):
 
 @app.post("/auth/signup")
 def signup(body: AuthRequest):
-    from db.client import get_db
-    db = get_db()
+    from db.client import get_auth_client
+    db = get_auth_client()
     try:
-        result = db.auth.sign_up({"email": body.email, "password": body.password})
+        # Use admin.create_user with email_confirm=True to auto-confirm the user,
+        # bypassing the email OTP confirmation flow since SMTP might be unconfigured/unstable.
+        result = db.auth.admin.create_user({
+            "email": body.email,
+            "password": body.password,
+            "email_confirm": True
+        })
         if result.user is None:
             raise HTTPException(status_code=400, detail="Signup failed — check email/password.")
         return {"status": "success", "user_id": str(result.user.id), "email": result.user.email}
@@ -140,8 +166,8 @@ def signup(body: AuthRequest):
 
 @app.post("/auth/login")
 def login(body: AuthRequest):
-    from db.client import get_db
-    db = get_db()
+    from db.client import get_auth_client
+    db = get_auth_client()
     try:
         result = db.auth.sign_in_with_password({"email": body.email, "password": body.password})
         session = result.session

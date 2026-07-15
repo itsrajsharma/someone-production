@@ -569,7 +569,9 @@
 <!-- END: UI Interaction Logic -->
 <script>
 // ── Auth State ──────────────────────────────────────────────────────────────
-const API = 'https://someone-rh2d.onrender.com';
+const API = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:')
+    ? 'http://127.0.0.1:5000'
+    : 'https://someone-rh2d.onrender.com';
 
 function _getToken()     { return localStorage.getItem('sv1_token') || ''; }
 function _getSessionId() { 
@@ -603,6 +605,20 @@ function _authHeadersNoJson() {
         'Authorization': 'Bearer ' + _getToken(),
         'X-Session-ID': _getSessionId(),
     };
+}
+
+function _handleUnauthorized() {
+    localStorage.removeItem('sv1_token');
+    localStorage.removeItem('sv1_session_id');
+    const modal = document.getElementById('auth-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+    const errorEl = document.getElementById('auth-error');
+    if (errorEl) {
+        errorEl.textContent = 'Session expired. Please sign in again.';
+        errorEl.classList.add('visible');
+    }
 }
 
 // ── Auth Modal Logic ────────────────────────────────────────────────────────
@@ -759,6 +775,11 @@ function _authHeadersNoJson() {
                 body: JSON.stringify({ "message": message })
             });
 
+            if (response.status === 401) {
+                _handleUnauthorized();
+                return;
+            }
+
             const data = await response.json();
             
             if (isOracle) {
@@ -847,6 +868,11 @@ function _authHeadersNoJson() {
                 body: formData
             });
 
+            if (response.status === 401) {
+                _handleUnauthorized();
+                return;
+            }
+
             syncStatus.classList.remove('opacity-0');
             setTimeout(() => syncStatus.classList.add('opacity-0'), 2500);
 
@@ -879,6 +905,11 @@ function _authHeadersNoJson() {
                     headers: _authHeaders(),
                     body: JSON.stringify({ "message": userMsg })
                 });
+
+                if (chatRes.status === 401) {
+                    _handleUnauthorized();
+                    return;
+                }
 
                 const chatData = await chatRes.json();
                 if (chatData.audio) {
@@ -1017,6 +1048,14 @@ async function fetchIntro(persona) {
         const res  = await fetch(`${API}/intro/${persona}`, {
             headers: _authHeaders({ 'Content-Type': undefined }),
         });
+
+        if (res.status === 401) {
+            const dotsEl = document.getElementById(dotsId);
+            if (dotsEl) dotsEl.remove();
+            _handleUnauthorized();
+            return;
+        }
+
         const data = await res.json();
 
         // Dissolve dots
