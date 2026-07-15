@@ -224,7 +224,9 @@ export function isRetryableError(err: any): boolean {
     // limits, unsupported params). The matching pattern is "api error 400"
     // which comes from the OpenAI-compat provider's error formatting, not
     // a bare "400" which is deliberately non-retryable for validation errors.
-    || msg.includes('api error 400');
+    || msg.includes('api error 400')
+    // 410: model endpoint is gone (deprecated/removed).
+    || msg.includes('410') || msg.includes('gone');
 }
 
 proxyRouter.post('/chat/completions', async (req: Request, res: Response) => {
