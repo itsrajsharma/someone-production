@@ -107,24 +107,30 @@ def _get_raw_client() -> OpenAI:
 class FallbackCompletions:
     def __init__(self, fallback_list: list[str]):
         self.fallback_list = fallback_list
-        self._client = _get_raw_client()
+        self._client = None  # lazy — initialised on first use
+
+    def _ensure_client(self):
+        if self._client is None:
+            self._client = _get_raw_client()
 
     def create(self, *args, **kwargs):
-        # We ignore whatever model string the caller passed,
-        # and instead enforce our fallback list.
+        # Initialise client on first call — so a missing API key raises here
+        # (inside the FastAPI request handler) rather than at wrapper construction,
+        # which would crash the ASGI middleware stack with an unhandled exception.
+        self._ensure_client()
+
+        # Ignore whatever model string the caller passed — enforce our fallback list.
         kwargs.pop("model", None)
-        
+
         last_err = None
         for model in self.fallback_list:
             try:
-                # Fire request to the current model in the fallback chain
                 return self._client.chat.completions.create(model=model, *args, **kwargs)
             except Exception as e:
-                # If it's a 403, 429, or 502, catch it and try the next one
                 print(f"  [LLM Fallback] {model} failed: {e}. Trying next...")
                 last_err = e
                 time.sleep(0.5)  # slight backoff before next attempt
-        
+
         raise RuntimeError(f"All fallback models failed. Last error: {last_err}")
 
 
@@ -137,6 +143,7 @@ class FallbackClientWrapper:
     """
     Duck-types an OpenAI client but routes chat.completions.create
     through a hardcoded list of fallback models.
+    The underlying OpenAI client is created lazily on first use.
     """
     def __init__(self, fallback_list: list[str]):
         self.chat = FallbackChat(fallback_list)
@@ -144,7 +151,7 @@ class FallbackClientWrapper:
 
 def get_fast_client() -> tuple[FallbackClientWrapper, str]:
     """
-    Returns (wrapper_client, 'ignored'). 
+    Returns (wrapper_client, 'ignored').
     For fast classification tasks (EBF, rhythm, facts, tags, monologue).
     """
     return FallbackClientWrapper(FAST_MODELS), "ignored"
@@ -160,7 +167,8 @@ def get_main_client() -> tuple[FallbackClientWrapper, str]:
 
 def get_heavy_client() -> tuple[FallbackClientWrapper, str]:
     """
-    Returns (wrapper_client, 'ignored'). 
+    Returns (wrapper_client, 'ignored').
     For deep context turns (e.g. session > 10 turns).
     """
     return FallbackClientWrapper(HEAVY_MODELS), "ignored"
+
