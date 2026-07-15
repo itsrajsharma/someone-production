@@ -7,14 +7,13 @@ python-multipart>=0.0.9       # required by FastAPI for file uploads
 supabase>=2.4.0               # supabase-py v2 (includes postgrest-py, gotrue)
 
 # ─── Auth ────────────────────────────────────────────────────────
-python-jose[cryptography]>=3.3.0
+PyJWT[cryptography]>=2.8.0    # main.py: `import jwt` — this is PyJWT, NOT python-jose
 
 # ─── LLM clients ─────────────────────────────────────────────────
-openai>=1.25.0                # used for Groq (OpenAI-compatible) + any future switch
-mistralai>=1.0.0              # keep for legacy compatibility
+openai>=1.25.0                # OpenRouter is OpenAI-compatible, same SDK
 
-# ─── Embeddings ──────────────────────────────────────────────────
-# Using Mistral API for embeddings (no local sentence-transformers)
+# ─── HTTP ────────────────────────────────────────────────────────
+requests>=2.31.0              # pipeline/dependency_resolver.py uses requests
 
 # ─── NLP / ML utils ──────────────────────────────────────────────
 scikit-learn>=1.4.0           # TF-IDF fallback in dependency_resolver
