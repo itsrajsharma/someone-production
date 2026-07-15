@@ -146,6 +146,8 @@ def _call_llm(
         messages=messages,
         temperature=0.75,
         max_tokens=300,
+        presence_penalty=0.4,
+        frequency_penalty=0.6,
     )
 
     import re as _re
