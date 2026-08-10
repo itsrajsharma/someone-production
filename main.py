@@ -314,7 +314,12 @@ def intro(
             temperature=temperature,
             max_tokens=max_tokens,
         )
-        reply = response.choices[0].message.content.strip()
+        import re as _re
+        raw = response.choices[0].message.content or ""
+        raw = _re.sub(r'<think>.*?</think>', '', raw, flags=_re.DOTALL).strip()
+        raw = _re.sub(r'<\|thinking\|>.*?<\|/thinking\|>', '', raw, flags=_re.DOTALL).strip()
+        raw = _re.sub(r'<reasoning>.*?</reasoning>', '', raw, flags=_re.DOTALL).strip()
+        reply = raw.strip()
     except Exception as e:
         print(f"[Intro Error] {e}")
         reply = fallback
