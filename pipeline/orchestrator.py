@@ -145,7 +145,7 @@ def _call_llm(
         model=chosen_model,
         messages=messages,
         temperature=0.75,
-        max_tokens=300,
+        max_tokens=500,
         presence_penalty=0.4,
         frequency_penalty=0.6,
     )
