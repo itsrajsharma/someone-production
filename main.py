@@ -320,6 +320,16 @@ def intro(
         raw = _re.sub(r'<\|thinking\|>.*?<\|/thinking\|>', '', raw, flags=_re.DOTALL).strip()
         raw = _re.sub(r'<reasoning>.*?</reasoning>', '', raw, flags=_re.DOTALL).strip()
         reply = raw.strip()
+
+        # Sanity check: detect prompt-leaked replies (model echoed instructions instead of following them)
+        _LEAK_SIGNALS = [
+            "opening line", "max 42 words", "1-2 sentences", "1–2 sentences",
+            "we need to", "generate one", "flavor:", "flavour:",
+            "soft open question", "gently invites", "rules:", "never say",
+        ]
+        if any(sig in reply.lower() for sig in _LEAK_SIGNALS) or len(reply) > 600:
+            print(f"[Intro] Prompt leak detected — using fallback. Model: {main_model}")
+            reply = fallback
     except Exception as e:
         print(f"[Intro Error] {e}")
         reply = fallback
